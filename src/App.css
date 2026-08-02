@@ -1,0 +1,258 @@
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  overflow: hidden;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #fff;
+  color: #24292e;
+}
+
+html[data-app-theme="dark"] .app-shell {
+  background: #1f2430;
+  color: #e6e6e6;
+}
+
+/* Toolbar */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+html[data-app-theme="dark"] .toolbar {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.toolbar button,
+.theme-select {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+  color: inherit;
+  cursor: pointer;
+}
+
+html[data-app-theme="dark"] .toolbar button,
+html[data-app-theme="dark"] .theme-select {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.toolbar button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.toolbar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-title-placeholder {
+  opacity: 0.4;
+}
+
+.sidebar-tabs {
+  display: flex;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+html[data-app-theme="dark"] .sidebar-tabs {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.sidebar-tabs button {
+  border: none;
+  border-radius: 0;
+}
+
+.sidebar-tabs button.active {
+  background: rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+}
+
+html[data-app-theme="dark"] .sidebar-tabs button.active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Body layout */
+
+.app-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.app-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 0;
+}
+
+html[data-app-theme="dark"] .app-sidebar {
+  border-right-color: rgba(255, 255, 255, 0.08);
+}
+
+.app-main {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.milkdown-editor-root {
+  width: 100%;
+  max-width: 820px;
+  padding: 40px 48px 120px;
+}
+
+/* Welcome screen */
+
+.welcome-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  opacity: 0.6;
+  text-align: center;
+  gap: 8px;
+}
+
+/* File tree */
+
+.sidebar-empty {
+  padding: 16px;
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+.file-tree {
+  font-size: 13px;
+}
+
+.file-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html[data-app-theme="dark"] .file-tree-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.file-tree-row.active {
+  background: rgba(64, 120, 220, 0.15);
+  font-weight: 600;
+}
+
+.file-tree-icon {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  opacity: 0.6;
+  font-size: 11px;
+}
+
+.file-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Outline */
+
+.outline-panel {
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.outline-item {
+  padding: 5px 12px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+html[data-app-theme="dark"] .outline-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Mermaid preview inside code blocks */
+
+.mermaid-render-error {
+  padding: 12px;
+  font-size: 12px;
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.08);
+  border-radius: 6px;
+}
+
+.preview-panel svg {
+  max-width: 100%;
+  height: auto;
+}

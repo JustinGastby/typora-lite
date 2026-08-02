@@ -1,0 +1,61 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {}
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest" # Apple Silicon (M1 and above)
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest" # Intel Macs
+            args: "--target x86_64-apple-darwin"
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: "npm"
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: install frontend dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Typora Lite ${{ github.ref_name }}"
+          releaseBody: |
+            自动构建产物，包含 macOS (Apple Silicon / Intel) 与 Windows 安装包。
+
+            安装说明：
+            - macOS：首次打开如被 Gatekeeper 拦截，右键点击 App → 选择「打开」
+            - Windows：首次运行如触发 SmartScreen 提示，点击「更多信息」→「仍要运行」
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
