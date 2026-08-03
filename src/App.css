@@ -152,8 +152,8 @@ html[data-app-theme="dark"] .app-sidebar {
 
 .milkdown-editor-root {
   width: 100%;
-  max-width: 820px;
-  padding: 40px 48px 120px;
+  max-width: 1100px;
+  padding: 40px clamp(24px, 6vw, 72px) 120px;
 }
 
 /* Welcome screen */

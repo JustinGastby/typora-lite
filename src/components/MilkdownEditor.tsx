@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Crepe } from "@milkdown/crepe";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { dirname, join } from "@tauri-apps/api/path";
+import { exists } from "@tauri-apps/plugin-fs";
 import { useEditorStore } from "../store/useEditorStore";
 import { saveImageFile } from "../lib/fsHelpers";
 import { extractOutline } from "../lib/outline";
@@ -9,15 +10,63 @@ import { renderMermaidToSvg } from "../lib/mermaidPreview";
 
 import "@milkdown/crepe/theme/common/style.css";
 
-const ABSOLUTE_URL_RE = /^([a-z][a-z0-9+.-]*:)?\/\//i;
+// http(s):// and protocol-relative URLs, plus embedded/already-served data.
+// Note: `file://` URIs are intentionally NOT included here — Tauri's webview
+// can't load raw `file://` resources, they still need to go through
+// `convertFileSrc` below like any other local filesystem path.
+const REMOTE_URL_RE = /^(https?:)?\/\//i;
+const WINDOWS_ABSOLUTE_RE = /^[a-zA-Z]:[\\/]/;
 
-function isAlreadyResolvable(url: string): boolean {
+function isRemoteOrEmbedded(url: string): boolean {
   return (
-    ABSOLUTE_URL_RE.test(url) ||
+    REMOTE_URL_RE.test(url) ||
     url.startsWith("data:") ||
     url.startsWith("blob:") ||
-    url.startsWith("asset:")
+    url.startsWith("asset:") ||
+    url.startsWith("tauri:")
   );
+}
+
+/** Extracts a raw filesystem path from an already-absolute reference, if any. */
+function toAbsoluteFsPath(url: string): string | null {
+  if (url.startsWith("file://")) {
+    const stripped = url.slice("file://".length);
+    try {
+      return decodeURIComponent(stripped);
+    } catch {
+      return stripped;
+    }
+  }
+  if (url.startsWith("/") || WINDOWS_ABSOLUTE_RE.test(url)) return url;
+  return null;
+}
+
+function decodeMaybe(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Builds the list of candidate absolute paths a relative image reference
+ * could point to: next to the current file (our own paste convention), and
+ * relative to the opened folder root (common in other tools/vaults where
+ * images are referenced relative to the workspace instead of the note).
+ */
+async function relativeImageCandidates(relativeUrl: string): Promise<string[]> {
+  const { currentFilePath, rootDir } = useEditorStore.getState();
+  const decoded = decodeMaybe(relativeUrl);
+  const candidates: string[] = [];
+
+  if (currentFilePath) {
+    candidates.push(await join(await dirname(currentFilePath), decoded));
+  }
+  if (rootDir) {
+    candidates.push(await join(rootDir, decoded));
+  }
+  return candidates;
 }
 
 /**
@@ -47,13 +96,21 @@ export function MilkdownEditor() {
     }
 
     async function handleProxyUrl(url: string): Promise<string> {
-      if (isAlreadyResolvable(url)) return url;
-      const path = useEditorStore.getState().currentFilePath;
-      if (!path) return url;
+      if (isRemoteOrEmbedded(url)) return url;
+
+      const absoluteFsPath = toAbsoluteFsPath(url);
+      if (absoluteFsPath) return convertFileSrc(absoluteFsPath);
+
       try {
-        const dir = await dirname(path);
-        const absolute = await join(dir, url);
-        return convertFileSrc(absolute);
+        const candidates = await relativeImageCandidates(url);
+        for (const candidate of candidates) {
+          if (await exists(candidate)) return convertFileSrc(candidate);
+        }
+        // None of the candidates exist on disk (broken link, or a check we
+        // couldn't run) — still try the best-guess candidate so the browser
+        // renders a broken-image icon instead of literally nothing.
+        if (candidates[0]) return convertFileSrc(candidates[0]);
+        return url;
       } catch (err) {
         console.error("Failed to resolve image path:", err);
         return url;
