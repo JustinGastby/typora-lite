@@ -8,6 +8,9 @@ fn greet(name: &str) -> String {
 }
 
 fn build_app_menu(app: &tauri::App) -> tauri::Result<()> {
+    let new_file = MenuItemBuilder::with_id("menu-new-file", "新建")
+        .accelerator("CmdOrCtrl+N")
+        .build(app)?;
     let open_file = MenuItemBuilder::with_id("menu-open-file", "打开文件…")
         .accelerator("CmdOrCtrl+O")
         .build(app)?;
@@ -24,6 +27,7 @@ fn build_app_menu(app: &tauri::App) -> tauri::Result<()> {
         .build(app)?;
 
     let file_menu = SubmenuBuilder::new(app, "文件")
+        .item(&new_file)
         .item(&open_file)
         .item(&open_folder)
         .separator()
@@ -62,6 +66,7 @@ fn build_app_menu(app: &tauri::App) -> tauri::Result<()> {
 
     app.on_menu_event(move |app_handle, event| {
         let forwarded = match event.id().as_ref() {
+            "menu-new-file" => Some("menu-new-file"),
             "menu-open-file" => Some("menu-open-file"),
             "menu-open-folder" => Some("menu-open-folder"),
             "menu-save" => Some("menu-save"),

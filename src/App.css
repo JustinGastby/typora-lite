@@ -170,6 +170,27 @@ html[data-app-theme="dark"] .app-sidebar {
   gap: 8px;
 }
 
+.welcome-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  opacity: 1;
+}
+
+.welcome-actions button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.welcome-actions button:hover {
+  opacity: 1;
+}
+
 /* File tree */
 
 .sidebar-empty {

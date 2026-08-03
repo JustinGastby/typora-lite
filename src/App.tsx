@@ -6,11 +6,18 @@ import { Sidebar } from "./components/Sidebar";
 import { OutlinePanel } from "./components/OutlinePanel";
 import { MilkdownEditor } from "./components/MilkdownEditor";
 import { useAutosave } from "./lib/useAutosave";
-import { loadFolder, openFileDialog, openFolderDialog, saveCurrentFile } from "./lib/actions";
+import {
+  createNewFile,
+  loadFolder,
+  openFileDialog,
+  openFolderDialog,
+  saveCurrentFile,
+} from "./lib/actions";
 import { loadLastFolder, loadPersistedTheme } from "./lib/settingsStore";
 import "./App.css";
 
 const MENU_ACTIONS: Record<string, () => void> = {
+  "menu-new-file": () => createNewFile(),
   "menu-open-file": () => openFileDialog().catch((err) => console.error(err)),
   "menu-open-folder": () => openFolderDialog().catch((err) => console.error(err)),
   "menu-save": () => saveCurrentFile().catch((err) => console.error(err)),
@@ -29,7 +36,16 @@ function WelcomeScreen() {
   return (
     <div className="welcome-screen">
       <h1>Typora Lite</h1>
-      <p>打开一个文件夹或 Markdown 文件开始写作</p>
+      <p>新建一个文件，或者打开文件夹 / Markdown 文件开始写作</p>
+      <div className="welcome-actions">
+        <button onClick={() => createNewFile()}>新建文件</button>
+        <button onClick={() => openFolderDialog().catch((err) => console.error(err))}>
+          打开文件夹
+        </button>
+        <button onClick={() => openFileDialog().catch((err) => console.error(err))}>
+          打开文件
+        </button>
+      </div>
     </div>
   );
 }
@@ -38,6 +54,7 @@ function App() {
   useAutosave();
 
   const currentFilePath = useEditorStore((s) => s.currentFilePath);
+  const isUntitled = useEditorStore((s) => s.isUntitled);
   const sidebarView = useEditorStore((s) => s.sidebarView);
   const sidebarVisible = useEditorStore((s) => s.sidebarVisible);
 
@@ -71,7 +88,11 @@ function App() {
           </aside>
         )}
         <main className="app-main">
-          {currentFilePath ? <MilkdownEditor key={currentFilePath} /> : <WelcomeScreen />}
+          {currentFilePath || isUntitled ? (
+            <MilkdownEditor key={currentFilePath ?? "untitled"} />
+          ) : (
+            <WelcomeScreen />
+          )}
         </main>
       </div>
     </div>

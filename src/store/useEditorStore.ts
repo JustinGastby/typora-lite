@@ -21,6 +21,7 @@ interface EditorState {
   rootDir: string | null;
   fileTree: FileNode[];
   currentFilePath: string | null;
+  isUntitled: boolean;
   content: string;
   savedContent: string;
   theme: ThemeName;
@@ -31,6 +32,7 @@ interface EditorState {
   setRootDir: (dir: string | null) => void;
   setFileTree: (tree: FileNode[]) => void;
   openFile: (path: string, content: string) => void;
+  newFile: () => void;
   closeFile: () => void;
   updateContent: (markdown: string) => void;
   markSaved: () => void;
@@ -44,6 +46,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   rootDir: null,
   fileTree: [],
   currentFilePath: null,
+  isUntitled: false,
   content: "",
   savedContent: "",
   theme: "classic",
@@ -54,9 +57,17 @@ export const useEditorStore = create<EditorState>((set) => ({
   setRootDir: (dir) => set({ rootDir: dir }),
   setFileTree: (tree) => set({ fileTree: tree }),
   openFile: (path, content) =>
-    set({ currentFilePath: path, content, savedContent: content, outline: [] }),
+    set({ currentFilePath: path, isUntitled: false, content, savedContent: content, outline: [] }),
+  newFile: () =>
+    set({
+      currentFilePath: null,
+      isUntitled: true,
+      content: "",
+      savedContent: "",
+      outline: [],
+    }),
   closeFile: () =>
-    set({ currentFilePath: null, content: "", savedContent: "", outline: [] }),
+    set({ currentFilePath: null, isUntitled: false, content: "", savedContent: "", outline: [] }),
   updateContent: (markdown) => set({ content: markdown }),
   markSaved: () => set((s) => ({ savedContent: s.content })),
   setTheme: (theme) => set({ theme }),

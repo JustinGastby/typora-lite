@@ -1,5 +1,5 @@
-import { open } from "@tauri-apps/plugin-dialog";
-import { dirname } from "@tauri-apps/api/path";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { dirname, join } from "@tauri-apps/api/path";
 import { useEditorStore } from "../store/useEditorStore";
 import { buildFileTree, loadMarkdownFile, saveMarkdownFile } from "./fsHelpers";
 import { persistLastFolder } from "./settingsStore";
@@ -42,9 +42,38 @@ export async function openFileDialog(): Promise<void> {
   await openFileAtPath(selected);
 }
 
+export function createNewFile(): void {
+  useEditorStore.getState().newFile();
+}
+
+async function saveAsNewFile(content: string): Promise<void> {
+  const rootDir = useEditorStore.getState().rootDir;
+  const target = await save({
+    title: "保存文件",
+    defaultPath: rootDir ? await join(rootDir, "未命名.md") : "未命名.md",
+    filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+  });
+  if (!target) return;
+
+  await saveMarkdownFile(target, content);
+  useEditorStore.getState().openFile(target, content);
+
+  const dir = await dirname(target);
+  if (useEditorStore.getState().rootDir === dir) {
+    await loadFolder(dir);
+  }
+}
+
 export async function saveCurrentFile(): Promise<void> {
-  const { currentFilePath, content, savedContent, markSaved } = useEditorStore.getState();
-  if (!currentFilePath || content === savedContent) return;
+  const { currentFilePath, content, savedContent, isUntitled, markSaved } =
+    useEditorStore.getState();
+
+  if (isUntitled || !currentFilePath) {
+    await saveAsNewFile(content);
+    return;
+  }
+
+  if (content === savedContent) return;
   await saveMarkdownFile(currentFilePath, content);
   markSaved();
 }

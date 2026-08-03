@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { useEditorStore } from "../store/useEditorStore";
-import { openFolderDialog, openFileDialog, saveCurrentFile } from "../lib/actions";
+import { createNewFile, openFolderDialog, openFileDialog, saveCurrentFile } from "../lib/actions";
 import { applyTheme, THEME_OPTIONS } from "../lib/themeLoader";
 import { persistTheme } from "../lib/settingsStore";
 import type { ThemeName } from "../store/useEditorStore";
 
 export function Toolbar() {
   const currentFilePath = useEditorStore((s) => s.currentFilePath);
+  const isUntitled = useEditorStore((s) => s.isUntitled);
   const isDirty = useEditorStore((s) => s.content !== s.savedContent);
   const sidebarView = useEditorStore((s) => s.sidebarView);
   const setSidebarView = useEditorStore((s) => s.setSidebarView);
@@ -19,12 +20,18 @@ export function Toolbar() {
     persistTheme(theme).catch((err) => console.error("Failed to persist theme:", err));
   }, [theme]);
 
-  const fileName = currentFilePath ? currentFilePath.split(/[\\/]/).pop() : null;
+  const fileName = currentFilePath
+    ? currentFilePath.split(/[\\/]/).pop()
+    : isUntitled
+      ? "未命名.md"
+      : null;
+  const canSave = isUntitled || (currentFilePath !== null && isDirty);
 
   return (
     <div className="toolbar">
       <div className="toolbar-group">
         <button onClick={toggleSidebar} title="切换侧边栏">☰</button>
+        <button onClick={() => createNewFile()}>新建文件</button>
         <button onClick={() => openFolderDialog().catch((e) => console.error(e))}>
           打开文件夹
         </button>
@@ -33,7 +40,7 @@ export function Toolbar() {
         </button>
         <button
           onClick={() => saveCurrentFile().catch((e) => console.error(e))}
-          disabled={!currentFilePath || !isDirty}
+          disabled={!canSave}
         >
           保存
         </button>
