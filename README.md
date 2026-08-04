@@ -9,9 +9,7 @@
 
 > Typora 风格 WYSIWYG，开源免费、本地优先；用系统 WebView 而不是整包 Chromium。
 
-![Typora Lite 主界面](docs/screenshots/hero.svg)
-
-<p align="center"><em>主界面预览 — 将真实截图放到 <code>docs/screenshots/</code>（说明见该目录）</em></p>
+![Typora Lite 主界面](docs/screenshots/main.png)
 
 ## 下载安装
 
