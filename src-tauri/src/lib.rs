@@ -1,10 +1,41 @@
-use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-use tauri::Emitter;
+use std::sync::Mutex;
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::{Emitter, Manager};
+
+struct PendingOpenPaths(Mutex<Vec<String>>);
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn take_pending_open_paths(app: tauri::AppHandle) -> Vec<String> {
+    let state = app.state::<PendingOpenPaths>();
+    let mut guard = state.0.lock().expect("pending open paths lock");
+    std::mem::take(&mut *guard)
+}
+
+#[cfg(any(windows, target_os = "linux"))]
+fn normalize_open_arg(arg: &str) -> Option<String> {
+    if arg.starts_with('-') {
+        return None;
+    }
+    if let Ok(url) = tauri::Url::parse(arg) {
+        return url
+            .to_file_path()
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned());
+    }
+    Some(arg.to_string())
+}
+
+fn queue_open_paths(app: &tauri::AppHandle, paths: Vec<String>) {
+    if paths.is_empty() {
+        return;
+    }
+    {
+        let state = app.state::<PendingOpenPaths>();
+        let mut guard = state.0.lock().expect("pending open paths lock");
+        guard.extend(paths.iter().cloned());
+    }
+    let _ = app.emit("app-open-paths", paths);
 }
 
 fn build_app_menu(app: &tauri::App) -> tauri::Result<()> {
@@ -90,11 +121,38 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .manage(PendingOpenPaths(Mutex::new(Vec::new())))
         .setup(|app| {
             build_app_menu(app)?;
+
+            // Windows / Linux: files passed as process args when opened from Explorer.
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                let paths: Vec<String> = std::env::args()
+                    .skip(1)
+                    .filter_map(|arg| normalize_open_arg(&arg))
+                    .collect();
+                queue_open_paths(&app.handle(), paths);
+            }
+
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .invoke_handler(tauri::generate_handler![take_pending_open_paths])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(
+            #[allow(unused_variables)]
+            |app, event| {
+                // macOS: dock drop / Finder "Open With" / double-click associations.
+                #[cfg(any(target_os = "macos", target_os = "ios"))]
+                if let tauri::RunEvent::Opened { urls } = event {
+                    let paths = urls
+                        .into_iter()
+                        .filter_map(|url| url.to_file_path().ok())
+                        .map(|p| p.to_string_lossy().into_owned())
+                        .collect::<Vec<_>>();
+                    queue_open_paths(app, paths);
+                }
+            },
+        );
 }

@@ -56,6 +56,9 @@ export function applyTheme(theme: ThemeName): void {
     document.head.appendChild(link);
   });
 
+  const isDark = DARK_THEMES.has(theme);
   document.documentElement.dataset.theme = theme;
-  document.documentElement.dataset.appTheme = DARK_THEMES.has(theme) ? "dark" : "light";
+  document.documentElement.dataset.appTheme = isDark ? "dark" : "light";
+  // Keep native form controls (select/button) in sync with our chrome tokens.
+  document.documentElement.style.colorScheme = isDark ? "dark" : "light";
 }

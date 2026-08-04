@@ -7,7 +7,7 @@
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![release](https://img.shields.io/github/v/release/JustinGastby/typora-lite?include_prereleases)
 
-> Typora 风格 WYSIWYG，开源免费、本地优先；用系统 WebView 而不是整包 Chromium。
+> Typora 风格 WYSIWYG，开源免费、本地优先，采用系统 WebView实现。
 
 ![Typora Lite 主界面](docs/screenshots/main.png)
 
@@ -32,17 +32,6 @@
 - **所见即所得**：输入即渲染，少切换预览窗格
 - **开箱即用**：Releases 一键安装
 - **本地优先**：文档与图片在你自己的文件夹里，无强制账号与云同步
-
-## 界面预览
-
-| 所见即所得写作 | 多主题 |
-|----------------|--------|
-| ![WYSIWYG 演示](docs/screenshots/wysiwyg.svg) | ![主题切换](docs/screenshots/themes.svg) |
-| *可替换为 `wysiwyg.gif`* | *可替换为 `themes.png`* |
-
-![公式与图表](docs/screenshots/mermaid-math.svg)
-
-<p align="center"><em>Mermaid / LaTeX — 可替换为 <code>mermaid-math.png</code></em></p>
 
 ## 功能特点
 

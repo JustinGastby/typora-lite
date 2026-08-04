@@ -1,5 +1,9 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+}
+
+html[data-app-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -57,24 +61,43 @@ body {
   border-radius: 6px;
   border: 1px solid var(--app-border, rgba(0, 0, 0, 0.12));
   background: var(--app-bg, rgba(0, 0, 0, 0.02));
-  color: inherit;
+  color: var(--app-fg, inherit);
   cursor: pointer;
+  opacity: 1;
+  /* Avoid native UA button colors fighting theme tokens */
+  -webkit-appearance: none;
+  appearance: none;
 }
 
-.toolbar button:hover:not(:disabled) {
+.toolbar button:hover:not(:disabled),
+.theme-select:hover {
   background: var(--app-hover, rgba(0, 0, 0, 0.06));
+  color: var(--app-fg, inherit);
 }
 
 .toolbar button:disabled {
-  opacity: 0.4;
+  /* Keep labels readable on every theme — opacity alone washes out on dark UIs */
+  color: color-mix(in srgb, var(--app-fg, #24292e) 42%, var(--app-panel, transparent));
+  border-color: color-mix(in srgb, var(--app-border, #ccc) 55%, transparent);
+  background: color-mix(in srgb, var(--app-bg, #fff) 70%, var(--app-panel, transparent));
+  opacity: 1;
   cursor: default;
+}
+
+.theme-select {
+  color-scheme: inherit;
+}
+
+.theme-select option {
+  background: var(--app-panel, #fff);
+  color: var(--app-fg, #24292e);
 }
 
 .toolbar-title {
   flex: 1;
   text-align: center;
   font-size: 13px;
-  opacity: 0.75;
+  color: color-mix(in srgb, var(--app-fg, #24292e) 75%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -89,15 +112,19 @@ body {
   border-radius: 6px;
   overflow: hidden;
   border: 1px solid var(--app-border, rgba(0, 0, 0, 0.12));
+  background: var(--app-bg, transparent);
 }
 
 .sidebar-tabs button {
   border: none;
   border-radius: 0;
+  background: transparent;
+  color: var(--app-fg, inherit);
 }
 
 .sidebar-tabs button.active {
   background: var(--app-active, rgba(0, 0, 0, 0.1));
+  color: var(--app-fg, inherit);
   font-weight: 600;
 }
 
@@ -208,30 +235,50 @@ body {
   justify-content: center;
   height: 100%;
   width: 100%;
-  opacity: 0.6;
   text-align: center;
   gap: 8px;
+  color: var(--app-fg, #24292e);
+  background: var(--app-bg, transparent);
+}
+
+.welcome-screen h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--app-fg, #24292e);
+}
+
+.welcome-screen > p {
+  margin: 0;
+  color: color-mix(in srgb, var(--app-fg, #24292e) 62%, transparent);
+  font-size: 14px;
 }
 
 .welcome-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  opacity: 1;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .welcome-actions button {
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: 1px solid currentColor;
-  background: transparent;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border, rgba(0, 0, 0, 0.12));
+  background: var(--app-panel, #f6f8fa);
+  color: var(--app-fg, #24292e);
   cursor: pointer;
   font-size: 13px;
-  opacity: 0.85;
+  font-weight: 500;
+  -webkit-appearance: none;
+  appearance: none;
+  opacity: 1;
 }
 
 .welcome-actions button:hover {
-  opacity: 1;
+  background: var(--app-hover, rgba(0, 0, 0, 0.06));
+  color: var(--app-fg, #24292e);
 }
 
 /* File tree */

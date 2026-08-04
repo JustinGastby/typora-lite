@@ -1,7 +1,13 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { dirname, join } from "@tauri-apps/api/path";
+import { stat } from "@tauri-apps/plugin-fs";
 import { useEditorStore } from "../store/useEditorStore";
-import { buildFileTree, loadMarkdownFile, saveMarkdownFile } from "./fsHelpers";
+import {
+  buildFileTree,
+  isMarkdownFile,
+  loadMarkdownFile,
+  saveMarkdownFile,
+} from "./fsHelpers";
 import { normalizeHtmlImages } from "./normalizeHtmlImages";
 import { persistLastFolder } from "./settingsStore";
 
@@ -43,6 +49,41 @@ export async function openFileDialog(): Promise<void> {
   });
   if (!selected || Array.isArray(selected)) return;
   await openFileAtPath(selected);
+}
+
+function fileNameFromPath(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path;
+}
+
+/**
+ * Handles paths dropped on the window or opened via OS file association
+ * (dock / "Open With" / double-click). Prefer directories and markdown files.
+ */
+export async function openDroppedPaths(paths: string[]): Promise<void> {
+  if (!paths.length) return;
+
+  for (const path of paths) {
+    try {
+      const info = await stat(path);
+      if (info.isDirectory) {
+        await loadFolder(path);
+        return;
+      }
+    } catch (err) {
+      console.error("Failed to stat dropped path:", path, err);
+      continue;
+    }
+
+    if (isMarkdownFile(fileNameFromPath(path))) {
+      await openFileAtPath(path);
+      return;
+    }
+  }
+
+  console.warn(
+    "Dropped items are not a folder or Markdown file:",
+    paths.map(fileNameFromPath).join(", "),
+  );
 }
 
 export function createNewFile(): void {

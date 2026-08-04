@@ -1,5 +1,7 @@
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useEditorStore } from "./store/useEditorStore";
 import { Toolbar } from "./components/Toolbar";
 import { Sidebar } from "./components/Sidebar";
@@ -9,6 +11,7 @@ import { useAutosave } from "./lib/useAutosave";
 import {
   createNewFile,
   loadFolder,
+  openDroppedPaths,
   openFileDialog,
   openFolderDialog,
   saveCurrentFile,
@@ -36,7 +39,7 @@ function WelcomeScreen() {
   return (
     <div className="welcome-screen">
       <h1>Typora Lite</h1>
-      <p>新建一个文件，或者打开文件夹 / Markdown 文件开始写作</p>
+      <p>新建、打开，或把 Markdown 文件 / 文件夹拖进窗口开始写作</p>
       <div className="welcome-actions">
         <button onClick={() => createNewFile()}>新建文件</button>
         <button onClick={() => openFolderDialog().catch((err) => console.error(err))}>
@@ -73,8 +76,29 @@ function App() {
       listen(event, () => handler()),
     );
 
+    // Drag Markdown / folder onto the app window.
+    const unlistenDragDrop = getCurrentWindow().onDragDropEvent((event) => {
+      if (event.payload.type !== "drop") return;
+      openDroppedPaths(event.payload.paths).catch((err) =>
+        console.error("Failed to open dropped paths:", err),
+      );
+    });
+
+    // OS "Open With" / dock drop / double-click (and Windows argv).
+    const unlistenOpened = listen<string[]>("app-open-paths", (event) => {
+      openDroppedPaths(event.payload).catch((err) =>
+        console.error("Failed to open OS-provided paths:", err),
+      );
+    });
+
+    invoke<string[]>("take_pending_open_paths")
+      .then((paths) => (paths.length ? openDroppedPaths(paths) : undefined))
+      .catch((err) => console.error("Failed to read pending open paths:", err));
+
     return () => {
       unlistenPromises.forEach((p) => p.then((unlisten) => unlisten()));
+      unlistenDragDrop.then((unlisten) => unlisten());
+      unlistenOpened.then((unlisten) => unlisten());
     };
   }, []);
 
