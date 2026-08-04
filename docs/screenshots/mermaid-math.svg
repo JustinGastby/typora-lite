@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="640" viewBox="0 0 1440 640" role="img" aria-label="Mermaid and math placeholder">
+  <rect width="1440" height="640" fill="#f6f8fa"/>
+  <rect x="80" y="80" width="600" height="480" rx="16" fill="#ffffff" stroke="#d0d7de"/>
+  <rect x="760" y="80" width="600" height="480" rx="16" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="380" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="24" fill="#0969da">Mermaid</text>
+  <text x="1060" y="300" text-anchor="middle" font-family="system-ui,sans-serif" font-size="24" fill="#8250df">LaTeX / KaTeX</text>
+  <text x="720" y="600" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" fill="#656d76">Replace with mermaid-math.png</text>
+</svg>

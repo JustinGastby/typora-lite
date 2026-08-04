@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="Themes screenshot placeholder">
+  <rect width="720" height="420" rx="12" fill="#eef5e8" stroke="#c3d4b5"/>
+  <rect x="40" y="60" width="200" height="300" rx="10" fill="#fffdfb" stroke="#e4d8cc"/>
+  <rect x="260" y="60" width="200" height="300" rx="10" fill="#f4ecd8" stroke="#d4c4a8"/>
+  <rect x="480" y="60" width="200" height="300" rx="10" fill="#0f1424" stroke="#2a3352"/>
+  <text x="360" y="400" text-anchor="middle" font-family="system-ui,sans-serif" font-size="16" fill="#4a5c4d">Replace with themes.png</text>
+</svg>

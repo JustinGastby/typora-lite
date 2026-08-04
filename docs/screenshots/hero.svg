@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-label="Hero screenshot placeholder">
+  <rect width="1440" height="900" fill="#f4f1ea"/>
+  <rect x="0" y="0" width="1440" height="48" fill="#ebe6dc"/>
+  <rect x="0" y="48" width="280" height="852" fill="#e8e2d6"/>
+  <rect x="300" y="100" width="1080" height="36" rx="6" fill="#d9d0c0"/>
+  <rect x="300" y="160" width="920" height="18" rx="4" fill="#e0d8ca"/>
+  <rect x="300" y="196" width="860" height="18" rx="4" fill="#e0d8ca"/>
+  <rect x="300" y="232" width="780" height="18" rx="4" fill="#e0d8ca"/>
+  <rect x="300" y="300" width="1080" height="220" rx="12" fill="#ddd4c4" stroke="#cfc5b3" stroke-dasharray="10 8"/>
+  <text x="720" y="420" text-anchor="middle" font-family="system-ui,sans-serif" font-size="28" fill="#6b5e4e">Replace with hero.png / hero screenshot</text>
+  <text x="720" y="460" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" fill="#8a7b68">docs/screenshots/hero.svg ’ bž;Lb*þï9( hero.png	</text>
+</svg>

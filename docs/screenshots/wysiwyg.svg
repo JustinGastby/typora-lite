@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-label="WYSIWYG demo placeholder">
+  <rect width="720" height="420" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+  <text x="360" y="190" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" fill="#57606a">WYSIWYG demo placeholder</text>
+  <text x="360" y="230" text-anchor="middle" font-family="system-ui,sans-serif" font-size="15" fill="#8b949e">Replace with wysiwyg.gif</text>
+</svg>
