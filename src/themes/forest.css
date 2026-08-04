@@ -1,0 +1,34 @@
+/* Soft green / olive theme — clearly tinted vs cream/white */
+html[data-theme="forest"] {
+  --app-bg: #eef5e8;
+  --app-fg: #243126;
+  --app-panel: #e2ecda;
+  --app-border: #c3d4b5;
+  --app-hover: #d5e4c9;
+  --app-active: #c8dbb8;
+  --app-accent: #2f6b3a;
+}
+
+html[data-theme="forest"] .milkdown {
+  --crepe-color-background: #eef5e8;
+  --crepe-color-on-background: #243126;
+  --crepe-color-surface: #e2ecda;
+  --crepe-color-surface-low: #d7e5cc;
+  --crepe-color-on-surface: #1e2a20;
+  --crepe-color-on-surface-variant: #4a5c4d;
+  --crepe-color-outline: #8aa67c;
+  --crepe-color-primary: #2f6b3a;
+  --crepe-color-secondary: #c8dbb8;
+  --crepe-color-on-secondary: #16301c;
+  --crepe-color-inverse: #1e3322;
+  --crepe-color-on-inverse: #eef5e8;
+  --crepe-color-inline-code: #b42318;
+  --crepe-color-error: #b42318;
+  --crepe-color-hover: #dce9d2;
+  --crepe-color-selected: #c8dbb8;
+  --crepe-color-inline-area: #d7e5cc;
+
+  --crepe-font-title: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --crepe-font-default: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --crepe-font-code: "SF Mono", Menlo, Consolas, monospace;
+}

@@ -2,6 +2,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { dirname, join } from "@tauri-apps/api/path";
 import { useEditorStore } from "../store/useEditorStore";
 import { buildFileTree, loadMarkdownFile, saveMarkdownFile } from "./fsHelpers";
+import { normalizeHtmlImages } from "./normalizeHtmlImages";
 import { persistLastFolder } from "./settingsStore";
 
 export async function loadFolder(dirPath: string): Promise<void> {
@@ -19,7 +20,9 @@ export async function openFolderDialog(): Promise<void> {
 }
 
 export async function openFileAtPath(path: string): Promise<void> {
-  const content = await loadMarkdownFile(path);
+  const raw = await loadMarkdownFile(path);
+  // Typora-style HTML <img> tags aren't rendered by Crepe; convert to Markdown.
+  const content = normalizeHtmlImages(raw);
   useEditorStore.getState().openFile(path, content);
 
   const dir = await dirname(path);

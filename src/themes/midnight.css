@@ -1,0 +1,34 @@
+/* Deep indigo night theme — distinct from flat gray classic-dark */
+html[data-theme="midnight"] {
+  --app-bg: #0f1424;
+  --app-fg: #e6e9f2;
+  --app-panel: #161c30;
+  --app-border: #2a3352;
+  --app-hover: #222a44;
+  --app-active: #2d3a63;
+  --app-accent: #7aa2ff;
+}
+
+html[data-theme="midnight"] .milkdown {
+  --crepe-color-background: #0f1424;
+  --crepe-color-on-background: #e6e9f2;
+  --crepe-color-surface: #161c30;
+  --crepe-color-surface-low: #12182a;
+  --crepe-color-on-surface: #e6e9f2;
+  --crepe-color-on-surface-variant: #a8b0c8;
+  --crepe-color-outline: #4a5578;
+  --crepe-color-primary: #7aa2ff;
+  --crepe-color-secondary: #2d3a63;
+  --crepe-color-on-secondary: #d7e2ff;
+  --crepe-color-inverse: #e6e9f2;
+  --crepe-color-on-inverse: #1a2140;
+  --crepe-color-inline-code: #ff8b8b;
+  --crepe-color-error: #ff8b8b;
+  --crepe-color-hover: #222a44;
+  --crepe-color-selected: #2d3a63;
+  --crepe-color-inline-area: #12182a;
+
+  --crepe-font-title: "Avenir Next", "Segoe UI", "PingFang SC", sans-serif;
+  --crepe-font-default: "Avenir Next", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --crepe-font-code: "JetBrains Mono", Menlo, Monaco, monospace;
+}

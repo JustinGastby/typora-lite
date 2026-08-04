@@ -1,5 +1,6 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 import type { ThemeName } from "../store/useEditorStore";
+import { isThemeName } from "./themeLoader";
 
 const store = new LazyStore("settings.json");
 
@@ -7,8 +8,8 @@ const THEME_KEY = "theme";
 const LAST_FOLDER_KEY = "lastFolder";
 
 export async function loadPersistedTheme(): Promise<ThemeName | null> {
-  const value = await store.get<ThemeName>(THEME_KEY);
-  return value ?? null;
+  const value = await store.get<unknown>(THEME_KEY);
+  return isThemeName(value) ? value : null;
 }
 
 export async function persistTheme(theme: ThemeName): Promise<void> {

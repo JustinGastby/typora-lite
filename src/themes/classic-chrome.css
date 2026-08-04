@@ -1,0 +1,20 @@
+/* App chrome tokens for built-in Crepe classic themes (Crepe CSS only styles .milkdown) */
+html[data-theme="classic"] {
+  --app-bg: #fffdfb;
+  --app-fg: #1f1b16;
+  --app-panel: #fff8f4;
+  --app-border: #e4d8cc;
+  --app-hover: #f9ecdf;
+  --app-active: #ede0d4;
+  --app-accent: #805610;
+}
+
+html[data-theme="classic-dark"] {
+  --app-bg: #1f1b16;
+  --app-fg: #eae1d9;
+  --app-panel: #18120b;
+  --app-border: #3b342b;
+  --app-hover: #251f17;
+  --app-active: #3b342b;
+  --app-accent: #f4bd6f;
+}

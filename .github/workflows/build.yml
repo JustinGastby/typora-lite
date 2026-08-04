@@ -4,7 +4,12 @@ on:
   push:
     tags:
       - "v*.*.*"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（不含 v 前缀，例如 1.0.2）。手动触发时必填，用于产物命名与 Release。"
+        required: true
+        type: string
 
 jobs:
   publish-tauri:
@@ -24,6 +29,48 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve version from tag or input
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TAG_NAME="${GITHUB_REF_NAME}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"
+            TAG_NAME="v${VERSION}"
+          else
+            echo "无法解析版本：请推送 v*.*.* 标签，或在手动触发时填写 version。"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version=${VERSION} tag=${TAG_NAME}"
+
+      - name: Sync project version for installer filenames
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # package.json
+          npm pkg set "version=${VERSION}"
+          # tauri.conf.json — product filename uses this version
+          node -e '
+            const fs = require("fs");
+            const p = "src-tauri/tauri.conf.json";
+            const j = JSON.parse(fs.readFileSync(p, "utf8"));
+            j.version = process.env.VERSION;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
+          '
+          # Cargo.toml package version
+          sed -i.bak -E "s/^version = \".*\"/version = \"${VERSION}\"/" src-tauri/Cargo.toml
+          rm -f src-tauri/Cargo.toml.bak
+          echo "Synced version files to ${VERSION}"
+          grep -n '"version"' package.json src-tauri/tauri.conf.json
+          grep -n '^version' src-tauri/Cargo.toml
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
 
       - name: setup node
         uses: actions/setup-node@v4
@@ -48,8 +95,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Typora Lite ${{ github.ref_name }}"
+          tagName: ${{ steps.version.outputs.tag }}
+          releaseName: "Typora Lite ${{ steps.version.outputs.tag }}"
           releaseBody: |
             自动构建产物，包含 macOS (Apple Silicon / Intel) 与 Windows 安装包。
 

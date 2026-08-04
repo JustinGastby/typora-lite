@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
 import { Crepe } from "@milkdown/crepe";
+import { editorViewCtx } from "@milkdown/kit/core";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { dirname, join } from "@tauri-apps/api/path";
 import { exists } from "@tauri-apps/plugin-fs";
 import { useEditorStore } from "../store/useEditorStore";
 import { saveImageFile } from "../lib/fsHelpers";
+import { attachImageCornerResize } from "../lib/imageCornerResize";
+import { normalizeHtmlImages } from "../lib/normalizeHtmlImages";
 import { extractOutline } from "../lib/outline";
 import { renderMermaidToSvg } from "../lib/mermaidPreview";
 
@@ -82,7 +85,7 @@ export function MilkdownEditor() {
     if (!containerRef.current) return;
 
     let disposed = false;
-    const initialContent = useEditorStore.getState().content;
+    const initialContent = normalizeHtmlImages(useEditorStore.getState().content);
 
     async function handleUpload(file: File): Promise<string> {
       const path = useEditorStore.getState().currentFilePath;
@@ -174,13 +177,25 @@ export function MilkdownEditor() {
       });
     });
 
+    let detachCornerResize: (() => void) | undefined;
+
     crepe.create().then(() => {
       if (disposed) return;
       useEditorStore.getState().setOutline(extractOutline(initialContent));
+      if (containerRef.current) {
+        detachCornerResize = attachImageCornerResize(containerRef.current, () => {
+          try {
+            return crepe.editor.ctx.get(editorViewCtx);
+          } catch {
+            return null;
+          }
+        });
+      }
     });
 
     return () => {
       disposed = true;
+      detachCornerResize?.();
       void crepe.destroy();
     };
   }, []);

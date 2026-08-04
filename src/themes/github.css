@@ -1,0 +1,35 @@
+/* Clean GitHub-like light theme — bright white + blue accent */
+html[data-theme="github"] {
+  --app-bg: #ffffff;
+  --app-fg: #1f2328;
+  --app-panel: #f6f8fa;
+  --app-border: #d0d7de;
+  --app-hover: #eaeef2;
+  --app-active: #ddf4ff;
+  --app-accent: #0969da;
+}
+
+html[data-theme="github"] .milkdown {
+  --crepe-color-background: #ffffff;
+  --crepe-color-on-background: #1f2328;
+  --crepe-color-surface: #f6f8fa;
+  --crepe-color-surface-low: #eff2f5;
+  --crepe-color-on-surface: #1f2328;
+  --crepe-color-on-surface-variant: #59636e;
+  --crepe-color-outline: #d0d7de;
+  --crepe-color-primary: #0969da;
+  --crepe-color-secondary: #ddf4ff;
+  --crepe-color-on-secondary: #0550ae;
+  --crepe-color-inverse: #24292f;
+  --crepe-color-on-inverse: #f6f8fa;
+  --crepe-color-inline-code: #cf222e;
+  --crepe-color-error: #cf222e;
+  --crepe-color-hover: #eaeef2;
+  --crepe-color-selected: #ddf4ff;
+  --crepe-color-inline-area: #eff2f5;
+
+  --crepe-font-title: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+  --crepe-font-default: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --crepe-font-code: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}

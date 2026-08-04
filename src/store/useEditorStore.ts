@@ -1,6 +1,12 @@
 import { create } from "zustand";
 
-export type ThemeName = "classic" | "classic-dark" | "nord";
+export type ThemeName =
+  | "classic"
+  | "classic-dark"
+  | "github"
+  | "sepia"
+  | "forest"
+  | "midnight";
 
 export interface FileNode {
   name: string;

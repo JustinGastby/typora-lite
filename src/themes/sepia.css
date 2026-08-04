@@ -1,0 +1,34 @@
+/* Warm parchment / reading theme — brown paper, unmistakable vs white themes */
+html[data-theme="sepia"] {
+  --app-bg: #f4ecd8;
+  --app-fg: #5b4636;
+  --app-panel: #ebe1c9;
+  --app-border: #d4c4a8;
+  --app-hover: #e0d3b8;
+  --app-active: #dcc7a0;
+  --app-accent: #8a5a2b;
+}
+
+html[data-theme="sepia"] .milkdown {
+  --crepe-color-background: #f4ecd8;
+  --crepe-color-on-background: #5b4636;
+  --crepe-color-surface: #ebe1c9;
+  --crepe-color-surface-low: #e4d8bc;
+  --crepe-color-on-surface: #4a382a;
+  --crepe-color-on-surface-variant: #7a624c;
+  --crepe-color-outline: #b59a78;
+  --crepe-color-primary: #8a5a2b;
+  --crepe-color-secondary: #e0c9a0;
+  --crepe-color-on-secondary: #3d2a18;
+  --crepe-color-inverse: #3d2a18;
+  --crepe-color-on-inverse: #f4ecd8;
+  --crepe-color-inline-code: #a33b2b;
+  --crepe-color-error: #a33b2b;
+  --crepe-color-hover: #e8dcc4;
+  --crepe-color-selected: #e0c9a0;
+  --crepe-color-inline-area: #e4d8bc;
+
+  --crepe-font-title: Georgia, "Songti SC", "Noto Serif SC", "Times New Roman", serif;
+  --crepe-font-default: Georgia, "PingFang SC", "Microsoft YaHei", serif;
+  --crepe-font-code: Menlo, Monaco, "Courier New", monospace;
+}
