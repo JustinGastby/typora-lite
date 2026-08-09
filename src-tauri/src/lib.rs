@@ -1,41 +1,65 @@
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{Emitter, Manager};
 
-struct PendingOpenPaths(Mutex<Vec<String>>);
+/// Process-global buffer: macOS `RunEvent::Opened` can fire *before* `setup`
+/// / managed state exist (tao #1235). Must not depend on `app.state`.
+fn pending_open_paths() -> &'static Mutex<Vec<String>> {
+    static PENDING: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+    PENDING.get_or_init(|| Mutex::new(Vec::new()))
+}
 
 #[tauri::command]
-fn take_pending_open_paths(app: tauri::AppHandle) -> Vec<String> {
-    let state = app.state::<PendingOpenPaths>();
-    let mut guard = state.0.lock().expect("pending open paths lock");
+fn take_pending_open_paths() -> Vec<String> {
+    let mut guard = pending_open_paths()
+        .lock()
+        .expect("pending open paths lock");
     std::mem::take(&mut *guard)
 }
 
-#[cfg(any(windows, target_os = "linux"))]
 fn normalize_open_arg(arg: &str) -> Option<String> {
-    if arg.starts_with('-') {
+    let arg = arg.trim();
+    if arg.is_empty() || arg.starts_with('-') {
         return None;
     }
     if let Ok(url) = tauri::Url::parse(arg) {
-        return url
-            .to_file_path()
-            .ok()
-            .map(|p| p.to_string_lossy().into_owned());
+        if url.scheme() == "file" {
+            return url
+                .to_file_path()
+                .ok()
+                .map(|p| p.to_string_lossy().into_owned());
+        }
+        // Ignore other URL schemes (deep links, etc.)
+        return None;
     }
     Some(arg.to_string())
 }
 
+fn paths_from_args(args: impl IntoIterator<Item = String>) -> Vec<String> {
+    args.into_iter()
+        .skip(1) // argv[0] = executable
+        .filter_map(|arg| normalize_open_arg(&arg))
+        .collect()
+}
+
+/// Buffer paths and ping the frontend. Frontend always drains via
+/// `take_pending_open_paths` (avoids double-open from emit payload + take).
 fn queue_open_paths(app: &tauri::AppHandle, paths: Vec<String>) {
     if paths.is_empty() {
         return;
     }
     {
-        let state = app.state::<PendingOpenPaths>();
-        let mut guard = state.0.lock().expect("pending open paths lock");
-        guard.extend(paths.iter().cloned());
+        let mut guard = pending_open_paths()
+            .lock()
+            .expect("pending open paths lock");
+        guard.extend(paths);
     }
-    let _ = app.emit("app-open-paths", paths);
+    let _ = app.emit("app-open-paths", ());
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_focus();
+        let _ = window.unminimize();
+    }
 }
 
 fn build_app_menu(app: &tauri::App) -> tauri::Result<()> {
@@ -121,18 +145,17 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .manage(PendingOpenPaths(Mutex::new(Vec::new())))
+        // Windows/Linux: second launch (Open With while already running) forwards argv here.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            queue_open_paths(app, paths_from_args(args));
+        }))
         .setup(|app| {
             build_app_menu(app)?;
 
-            // Windows / Linux: files passed as process args when opened from Explorer.
+            // Windows / Linux cold start: file path(s) on argv.
             #[cfg(any(windows, target_os = "linux"))]
             {
-                let paths: Vec<String> = std::env::args()
-                    .skip(1)
-                    .filter_map(|arg| normalize_open_arg(&arg))
-                    .collect();
-                queue_open_paths(&app.handle(), paths);
+                queue_open_paths(&app.handle(), paths_from_args(std::env::args()));
             }
 
             Ok(())
@@ -143,7 +166,8 @@ pub fn run() {
         .run(
             #[allow(unused_variables)]
             |app, event| {
-                // macOS: dock drop / Finder "Open With" / double-click associations.
+                // macOS: dock drop / Finder "Open With" / double-click.
+                // May fire before setup — only touch the static buffer + emit.
                 #[cfg(any(target_os = "macos", target_os = "ios"))]
                 if let tauri::RunEvent::Opened { urls } = event {
                     let paths = urls

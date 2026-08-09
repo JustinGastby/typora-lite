@@ -9,9 +9,11 @@ import {
 import { join, dirname } from "@tauri-apps/api/path";
 import type { FileNode } from "../store/useEditorStore";
 
-const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
 const IGNORED_ENTRIES = new Set([".git", ".DS_Store", "node_modules", ".idea", ".vscode"]);
 
+const MARKDOWN_EXTENSIONS = new Set(["md", "markdown"]);
+
+/** `.md` / `.markdown` are treated as editable documents. */
 export function isMarkdownFile(name: string): boolean {
   const idx = name.lastIndexOf(".");
   if (idx === -1) return false;

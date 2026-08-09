@@ -1,4 +1,4 @@
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { message, open, save } from "@tauri-apps/plugin-dialog";
 import { dirname, join } from "@tauri-apps/api/path";
 import { stat } from "@tauri-apps/plugin-fs";
 import { useEditorStore } from "../store/useEditorStore";
@@ -10,6 +10,13 @@ import {
 } from "./fsHelpers";
 import { normalizeHtmlImages } from "./normalizeHtmlImages";
 import { persistLastFolder } from "./settingsStore";
+
+async function notifyUnsupportedFormat(fileName: string): Promise<void> {
+  await message(`暂不支持打开「${fileName}」，目前仅支持 .md / .markdown 文件。`, {
+    title: "Typora Lite",
+    kind: "info",
+  });
+}
 
 export async function loadFolder(dirPath: string): Promise<void> {
   const tree = await buildFileTree(dirPath);
@@ -26,6 +33,12 @@ export async function openFolderDialog(): Promise<void> {
 }
 
 export async function openFileAtPath(path: string): Promise<void> {
+  const name = fileNameFromPath(path);
+  if (!isMarkdownFile(name)) {
+    await notifyUnsupportedFormat(name);
+    return;
+  }
+
   const raw = await loadMarkdownFile(path);
   // Typora-style HTML <img> tags aren't rendered by Crepe; convert to Markdown.
   const content = normalizeHtmlImages(raw);
@@ -57,10 +70,12 @@ function fileNameFromPath(path: string): string {
 
 /**
  * Handles paths dropped on the window or opened via OS file association
- * (dock / "Open With" / double-click). Prefer directories and markdown files.
+ * (dock / "Open With" / double-click). Folders and Markdown files only.
  */
 export async function openDroppedPaths(paths: string[]): Promise<void> {
   if (!paths.length) return;
+
+  const unsupported: string[] = [];
 
   for (const path of paths) {
     try {
@@ -74,16 +89,17 @@ export async function openDroppedPaths(paths: string[]): Promise<void> {
       continue;
     }
 
-    if (isMarkdownFile(fileNameFromPath(path))) {
+    const name = fileNameFromPath(path);
+    if (isMarkdownFile(name)) {
       await openFileAtPath(path);
       return;
     }
+    unsupported.push(name);
   }
 
-  console.warn(
-    "Dropped items are not a folder or Markdown file:",
-    paths.map(fileNameFromPath).join(", "),
-  );
+  if (unsupported.length) {
+    await notifyUnsupportedFormat(unsupported[0]!);
+  }
 }
 
 export function createNewFile(): void {

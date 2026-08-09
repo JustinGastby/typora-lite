@@ -62,43 +62,94 @@ function App() {
   const sidebarVisible = useEditorStore((s) => s.sidebarVisible);
 
   useEffect(() => {
+    let cancelled = false;
+    const cleanups: Array<() => void> = [];
+
     loadPersistedTheme()
       .then((theme) => {
         if (theme) useEditorStore.getState().setTheme(theme);
       })
       .catch((err) => console.error("Failed to load saved theme:", err));
 
-    loadLastFolder()
-      .then((folder) => (folder ? loadFolder(folder) : undefined))
-      .catch((err) => console.error("Failed to restore last folder:", err));
+    // Prefer OS-provided open paths over restoring the last folder.
+    const restoreFolderUnlessOpening = (async () => {
+      try {
+        // Small yield so OS-open drain can claim priority first.
+        await new Promise((r) => setTimeout(r, 0));
+        if (cancelled) return;
+        const { currentFilePath, isUntitled } = useEditorStore.getState();
+        if (currentFilePath || isUntitled) return;
+        const folder = await loadLastFolder();
+        if (cancelled || !folder) return;
+        const state = useEditorStore.getState();
+        if (state.currentFilePath || state.isUntitled) return;
+        await loadFolder(folder);
+      } catch (err) {
+        console.error("Failed to restore last folder:", err);
+      }
+    })();
+    void restoreFolderUnlessOpening;
 
-    const unlistenPromises = Object.entries(MENU_ACTIONS).map(([event, handler]) =>
-      listen(event, () => handler()),
-    );
+    Object.entries(MENU_ACTIONS).forEach(([event, handler]) => {
+      listen(event, () => handler()).then((unlisten) => {
+        if (cancelled) unlisten();
+        else cleanups.push(unlisten);
+      });
+    });
 
     // Drag Markdown / folder onto the app window.
-    const unlistenDragDrop = getCurrentWindow().onDragDropEvent((event) => {
-      if (event.payload.type !== "drop") return;
-      openDroppedPaths(event.payload.paths).catch((err) =>
-        console.error("Failed to open dropped paths:", err),
-      );
-    });
+    getCurrentWindow()
+      .onDragDropEvent((event) => {
+        if (event.payload.type !== "drop") return;
+        openDroppedPaths(event.payload.paths).catch((err) =>
+          console.error("Failed to open dropped paths:", err),
+        );
+      })
+      .then((unlisten) => {
+        if (cancelled) unlisten();
+        else cleanups.push(unlisten);
+      });
 
-    // OS "Open With" / dock drop / double-click (and Windows argv).
-    const unlistenOpened = listen<string[]>("app-open-paths", (event) => {
-      openDroppedPaths(event.payload).catch((err) =>
-        console.error("Failed to open OS-provided paths:", err),
-      );
-    });
+    // OS "Open With" / dock drop / double-click.
+    // Rust only pings `app-open-paths`; paths always come from take_pending
+    // so cold-start emits (before JS listens) are not lost, and we never
+    // double-open from emit payload + take.
+    (async () => {
+      async function drainPendingOpenPaths() {
+        const paths = await invoke<string[]>("take_pending_open_paths");
+        if (!paths.length || cancelled) return;
+        await openDroppedPaths(paths);
+      }
 
-    invoke<string[]>("take_pending_open_paths")
-      .then((paths) => (paths.length ? openDroppedPaths(paths) : undefined))
-      .catch((err) => console.error("Failed to read pending open paths:", err));
+      const unlisten = await listen("app-open-paths", () => {
+        drainPendingOpenPaths().catch((err) =>
+          console.error("Failed to open OS-provided paths:", err),
+        );
+      });
+      if (cancelled) {
+        unlisten();
+        return;
+      }
+      cleanups.push(unlisten);
+
+      try {
+        await drainPendingOpenPaths();
+      } catch (err) {
+        console.error("Failed to read pending open paths:", err);
+      }
+
+      // macOS Opened can arrive slightly after the first drain on cold start.
+      const retryId = window.setTimeout(() => {
+        drainPendingOpenPaths().catch((err) =>
+          console.error("Failed to retry pending open paths:", err),
+        );
+      }, 400);
+      cleanups.push(() => window.clearTimeout(retryId));
+    })();
 
     return () => {
-      unlistenPromises.forEach((p) => p.then((unlisten) => unlisten()));
-      unlistenDragDrop.then((unlisten) => unlisten());
-      unlistenOpened.then((unlisten) => unlisten());
+      cancelled = true;
+      cleanups.forEach((fn) => fn());
     };
   }, []);
 
