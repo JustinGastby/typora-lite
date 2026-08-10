@@ -18,10 +18,25 @@ fn take_pending_open_paths() -> Vec<String> {
     std::mem::take(&mut *guard)
 }
 
+/// A raw Windows drive-letter path (`C:\...` / `C:/...`) is NOT a URL —
+/// `url::Url::parse` happily "succeeds" on it by treating `C:` as the URL
+/// *scheme*, silently discarding the whole path once we check
+/// `scheme() == "file"`. Must check this before attempting URL parsing.
+fn is_windows_drive_path(arg: &str) -> bool {
+    let bytes = arg.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes[2] == b'\\' || bytes[2] == b'/')
+}
+
 fn normalize_open_arg(arg: &str) -> Option<String> {
     let arg = arg.trim();
     if arg.is_empty() || arg.starts_with('-') {
         return None;
+    }
+    if is_windows_drive_path(arg) || arg.starts_with("\\\\") {
+        return Some(arg.to_string());
     }
     if let Ok(url) = tauri::Url::parse(arg) {
         if url.scheme() == "file" {
