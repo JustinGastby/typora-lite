@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/useEditorStore";
-import { saveMarkdownFile } from "./fsHelpers";
+import { persistBlobImages, saveMarkdownFile } from "./fsHelpers";
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -18,8 +18,14 @@ export function useAutosave(): void {
 
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
-      saveMarkdownFile(currentFilePath, content)
-        .then(() => markSaved())
+      persistBlobImages(currentFilePath, content)
+        .then(async (finalContent) => {
+          await saveMarkdownFile(currentFilePath, finalContent);
+          if (finalContent !== content) {
+            useEditorStore.getState().updateContent(finalContent);
+          }
+          markSaved();
+        })
         .catch((err) => {
           console.error("Autosave failed:", err);
         });

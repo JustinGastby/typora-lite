@@ -6,6 +6,7 @@ import {
   buildFileTree,
   isMarkdownFile,
   loadMarkdownFile,
+  persistBlobImages,
   saveMarkdownFile,
 } from "./fsHelpers";
 import { normalizeHtmlImages } from "./normalizeHtmlImages";
@@ -115,8 +116,9 @@ async function saveAsNewFile(content: string): Promise<void> {
   });
   if (!target) return;
 
-  await saveMarkdownFile(target, content);
-  useEditorStore.getState().openFile(target, content);
+  const finalContent = await persistBlobImages(target, content);
+  await saveMarkdownFile(target, finalContent);
+  useEditorStore.getState().openFile(target, finalContent);
 
   const dir = await dirname(target);
   if (useEditorStore.getState().rootDir === dir) {
@@ -134,6 +136,11 @@ export async function saveCurrentFile(): Promise<void> {
   }
 
   if (content === savedContent) return;
-  await saveMarkdownFile(currentFilePath, content);
+
+  const finalContent = await persistBlobImages(currentFilePath, content);
+  await saveMarkdownFile(currentFilePath, finalContent);
+  if (finalContent !== content) {
+    useEditorStore.getState().updateContent(finalContent);
+  }
   markSaved();
 }

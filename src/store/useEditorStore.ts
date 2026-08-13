@@ -34,6 +34,7 @@ interface EditorState {
   outline: HeadingItem[];
   sidebarView: SidebarView;
   sidebarVisible: boolean;
+  sidebarWidth: number;
 
   setRootDir: (dir: string | null) => void;
   setFileTree: (tree: FileNode[]) => void;
@@ -46,6 +47,7 @@ interface EditorState {
   setOutline: (outline: HeadingItem[]) => void;
   setSidebarView: (view: SidebarView) => void;
   toggleSidebar: () => void;
+  setSidebarWidth: (width: number) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -59,6 +61,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   outline: [],
   sidebarView: "files",
   sidebarVisible: true,
+  sidebarWidth: 240,
 
   setRootDir: (dir) => set({ rootDir: dir }),
   setFileTree: (tree) => set({ fileTree: tree }),
@@ -80,4 +83,5 @@ export const useEditorStore = create<EditorState>((set) => ({
   setOutline: (outline) => set({ outline }),
   setSidebarView: (view) => set({ sidebarView: view, sidebarVisible: true }),
   toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
+  setSidebarWidth: (width) => set({ sidebarWidth: width }),
 }));

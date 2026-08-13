@@ -67,18 +67,29 @@ function sanitizeFileName(name: string): string {
   return cleaned || "image";
 }
 
+const EXT_BY_MIME: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "image/svg+xml": ".svg",
+  "image/bmp": ".bmp",
+  "image/avif": ".avif",
+};
+
 /**
  * Saves a pasted/dropped image next to the current markdown file's `assets/` folder
  * and returns a markdown-relative path (e.g. `assets/foo-171234.png`) suitable for
  * storing directly in the document source.
  */
-export async function saveImageFile(markdownFilePath: string, file: File): Promise<string> {
+export async function saveImageFile(markdownFilePath: string, file: File | Blob): Promise<string> {
   const assetsDir = await ensureAssetsDir(markdownFilePath);
   const buffer = new Uint8Array(await file.arrayBuffer());
 
-  const dotIndex = file.name.lastIndexOf(".");
-  const ext = dotIndex !== -1 ? file.name.slice(dotIndex) : ".png";
-  const rawBase = dotIndex !== -1 ? file.name.slice(0, dotIndex) : file.name || "image";
+  const nameFromFile = file instanceof File ? file.name : "";
+  const dotIndex = nameFromFile.lastIndexOf(".");
+  const ext = dotIndex !== -1 ? nameFromFile.slice(dotIndex) : EXT_BY_MIME[file.type] ?? ".png";
+  const rawBase = dotIndex !== -1 ? nameFromFile.slice(0, dotIndex) : nameFromFile || "image";
   const baseName = sanitizeFileName(rawBase);
   const fileName = `${baseName}-${Date.now()}${ext}`;
 
@@ -86,4 +97,38 @@ export async function saveImageFile(markdownFilePath: string, file: File): Promi
   await writeFile(destPath, buffer);
 
   return `assets/${fileName}`;
+}
+
+const BLOB_IMAGE_RE = /!\[[^\]]*\]\((blob:[^)\s]+)(?:\s+"[^"]*")?\)/g;
+
+/**
+ * Rewrites markdown that still references transient `blob:` object URLs
+ * (from pasting an image before the document had a real file path) into
+ * real files under `assets/`. Without this, the blob text gets saved
+ * verbatim and the image is permanently broken after the app restarts,
+ * even though it displayed fine in the current session.
+ */
+export async function persistBlobImages(
+  markdownFilePath: string,
+  content: string,
+): Promise<string> {
+  if (!content.includes("](blob:")) return content;
+
+  const blobUrls = new Set<string>();
+  for (const match of content.matchAll(BLOB_IMAGE_RE)) {
+    blobUrls.add(match[1]!);
+  }
+  if (!blobUrls.size) return content;
+
+  let updated = content;
+  for (const blobUrl of blobUrls) {
+    try {
+      const blob = await (await fetch(blobUrl)).blob();
+      const relPath = await saveImageFile(markdownFilePath, blob);
+      updated = updated.split(blobUrl).join(relPath);
+    } catch (err) {
+      console.error("Failed to persist pasted image before save:", blobUrl, err);
+    }
+  }
+  return updated;
 }

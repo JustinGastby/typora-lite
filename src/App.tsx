@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -16,7 +16,13 @@ import {
   openFolderDialog,
   saveCurrentFile,
 } from "./lib/actions";
-import { loadLastFolder, loadPersistedTheme } from "./lib/settingsStore";
+import {
+  loadLastFolder,
+  loadPersistedTheme,
+  loadPersistedSidebarWidth,
+  persistSidebarWidth,
+  clampSidebarWidth,
+} from "./lib/settingsStore";
 import "./App.css";
 
 const MENU_ACTIONS: Record<string, () => void> = {
@@ -60,10 +66,16 @@ function App() {
   const isUntitled = useEditorStore((s) => s.isUntitled);
   const sidebarView = useEditorStore((s) => s.sidebarView);
   const sidebarVisible = useEditorStore((s) => s.sidebarVisible);
+  const sidebarWidth = useEditorStore((s) => s.sidebarWidth);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const cleanups: Array<() => void> = [];
+
+    loadPersistedSidebarWidth()
+      .then((width) => useEditorStore.getState().setSidebarWidth(width))
+      .catch((err) => console.error("Failed to load sidebar width:", err));
 
     loadPersistedTheme()
       .then((theme) => {
@@ -158,9 +170,43 @@ function App() {
       <Toolbar />
       <div className="app-body">
         {sidebarVisible && (
-          <aside className="app-sidebar">
-            {sidebarView === "files" ? <Sidebar /> : <OutlinePanel />}
-          </aside>
+          <div className="app-sidebar-wrap" style={{ width: sidebarWidth }}>
+            <aside className="app-sidebar">
+              {sidebarView === "files" ? <Sidebar /> : <OutlinePanel />}
+            </aside>
+            <div
+              className="sidebar-resize-handle"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.currentTarget.setPointerCapture(event.pointerId);
+                dragRef.current = { startX: event.clientX, startWidth: sidebarWidth };
+                document.documentElement.classList.add("is-resizing-sidebar");
+              }}
+              onPointerMove={(event) => {
+                const drag = dragRef.current;
+                if (!drag) return;
+                const next = clampSidebarWidth(drag.startWidth + event.clientX - drag.startX);
+                useEditorStore.getState().setSidebarWidth(next);
+              }}
+              onPointerUp={(event) => {
+                if (!dragRef.current) return;
+                dragRef.current = null;
+                document.documentElement.classList.remove("is-resizing-sidebar");
+                try {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                } catch {
+                  /* already released */
+                }
+                persistSidebarWidth(useEditorStore.getState().sidebarWidth).catch((err) =>
+                  console.error("Failed to persist sidebar width:", err),
+                );
+              }}
+              onPointerCancel={() => {
+                dragRef.current = null;
+                document.documentElement.classList.remove("is-resizing-sidebar");
+              }}
+            />
+          </div>
         )}
         <main className="app-main">
           {currentFilePath || isUntitled ? (
