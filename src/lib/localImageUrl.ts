@@ -117,30 +117,49 @@ function mimeForPath(path: string): string {
   return MIME_BY_EXT[ext] ?? "application/octet-stream";
 }
 
-async function pathToBlobUrl(fsPath: string): Promise<string> {
+function fsPathVariants(fsPath: string): string[] {
   const key = normalizeFsPath(fsPath);
-  const cached = blobCache.get(key);
-  if (cached) return cached;
-
-  // Try forward-slash form first, then native Windows backslash form.
   const variants = [key];
   if (WINDOWS_ABSOLUTE_RE.test(key) || key.startsWith("//")) {
     variants.push(key.replace(/\//g, "\\"));
   }
+  return variants;
+}
 
+async function readImageBlob(fsPath: string): Promise<Blob> {
   let lastErr: unknown;
-  for (const candidate of variants) {
+  for (const candidate of fsPathVariants(fsPath)) {
     try {
       const bytes = await readFile(candidate);
-      const blob = new Blob([bytes], { type: mimeForPath(candidate) });
-      const url = URL.createObjectURL(blob);
-      blobCache.set(key, url);
-      return url;
+      return new Blob([bytes], { type: mimeForPath(candidate) });
     } catch (err) {
       lastErr = err;
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Image conversion did not produce a data URL"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function pathToBlobUrl(fsPath: string): Promise<string> {
+  const key = normalizeFsPath(fsPath);
+  const cached = blobCache.get(key);
+  if (cached) return cached;
+
+  const blob = await readImageBlob(key);
+  const url = URL.createObjectURL(blob);
+  blobCache.set(key, url);
+  return url;
 }
 
 async function relativeImageCandidates(relativeUrl: string): Promise<string[]> {
@@ -158,11 +177,7 @@ async function relativeImageCandidates(relativeUrl: string): Promise<string[]> {
 
 async function pathExists(fsPath: string): Promise<boolean> {
   const key = normalizeFsPath(fsPath);
-  const variants = [key];
-  if (WINDOWS_ABSOLUTE_RE.test(key) || key.startsWith("//")) {
-    variants.push(key.replace(/\//g, "\\"));
-  }
-  for (const candidate of variants) {
+  for (const candidate of fsPathVariants(key)) {
     try {
       if (await exists(candidate)) return true;
     } catch {
@@ -170,6 +185,43 @@ async function pathExists(fsPath: string): Promise<boolean> {
     }
   }
   return false;
+}
+
+/**
+ * Converts a local image reference into an export-safe data URL.
+ * Returns null for remote HTTP(S) images, which intentionally stay external.
+ */
+export async function localImageToDataUrl(
+  url: string,
+  markdownFilePath: string,
+): Promise<string | null> {
+  let raw = url.trim();
+  if (!raw) return null;
+  if (raw.startsWith("<") && raw.endsWith(">")) {
+    raw = raw.slice(1, -1).trim();
+  }
+  if (raw.startsWith("data:")) return raw;
+
+  const isResolvedLocalUrl =
+    raw.startsWith("blob:") ||
+    raw.startsWith("asset:") ||
+    raw.startsWith("http://asset.localhost") ||
+    raw.startsWith("https://asset.localhost") ||
+    raw.startsWith("tauri:");
+  if (isResolvedLocalUrl) {
+    const response = await fetch(raw);
+    if (!response.ok) {
+      throw new Error(`Failed to read resolved image URL (${response.status})`);
+    }
+    return blobToDataUrl(await response.blob());
+  }
+  if (REMOTE_URL_RE.test(raw)) return null;
+
+  let fsPath = toAbsoluteFsPath(raw);
+  if (!fsPath) {
+    fsPath = await join(await dirname(markdownFilePath), normalizeFsPath(raw));
+  }
+  return blobToDataUrl(await readImageBlob(fsPath));
 }
 
 /**

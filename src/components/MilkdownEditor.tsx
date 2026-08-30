@@ -3,6 +3,7 @@ import { Crepe } from "@milkdown/crepe";
 import { editorViewCtx } from "@milkdown/kit/core";
 import { useEditorStore } from "../store/useEditorStore";
 import { saveImageFile } from "../lib/fsHelpers";
+import { rememberImageBlob, rewritePersistedBlobUrls } from "../lib/imageBlobRegistry";
 import { attachImageCornerResize } from "../lib/imageCornerResize";
 import { resolveLocalImageUrl } from "../lib/localImageUrl";
 import { normalizeHtmlImages } from "../lib/normalizeHtmlImages";
@@ -13,9 +14,9 @@ import "@milkdown/crepe/theme/common/style.css";
 
 /**
  * Mounts a Milkdown Crepe WYSIWYG instance bound to the currently open file.
- * The parent renders this with `key={currentFilePath}` so switching documents
- * fully remounts (and re-initializes) the editor instead of trying to patch
- * an existing ProseMirror view in place.
+ * The parent keys this by document instance and path so switching documents
+ * or creating another untitled document fully remounts the editor instead of
+ * trying to patch an existing ProseMirror view in place.
  */
 export function MilkdownEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,13 +29,14 @@ export function MilkdownEditor() {
 
     async function handleUpload(file: File): Promise<string> {
       const path = useEditorStore.getState().currentFilePath;
-      if (!path) return URL.createObjectURL(file);
-      try {
-        return await saveImageFile(path, file);
-      } catch (err) {
-        console.error("Failed to save pasted image:", err);
-        return URL.createObjectURL(file);
+      if (path) {
+        try {
+          return await saveImageFile(path, file);
+        } catch (err) {
+          console.error("Failed to save pasted image:", err);
+        }
       }
+      return rememberImageBlob(file);
     }
 
     async function handleProxyUrl(url: string): Promise<string> {
@@ -98,8 +100,9 @@ export function MilkdownEditor() {
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown) => {
         if (disposed) return;
-        useEditorStore.getState().updateContent(markdown);
-        useEditorStore.getState().setOutline(extractOutline(markdown));
+        const next = rewritePersistedBlobUrls(markdown);
+        useEditorStore.getState().updateContent(next);
+        useEditorStore.getState().setOutline(extractOutline(next));
       });
     });
 

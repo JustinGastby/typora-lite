@@ -31,7 +31,9 @@ export function Toolbar() {
     <div className="toolbar">
       <div className="toolbar-group">
         <button onClick={toggleSidebar} title="切换侧边栏">☰</button>
-        <button onClick={() => createNewFile()}>新建文件</button>
+        <button onClick={() => createNewFile().catch((e) => console.error(e))}>
+          新建文件
+        </button>
         <button onClick={() => openFolderDialog().catch((e) => console.error(e))}>
           打开文件夹
         </button>

@@ -8,6 +8,7 @@ import rehypeHighlight from "rehype-highlight";
 import rehypeStringify from "rehype-stringify";
 import katexCss from "katex/dist/katex.min.css?raw";
 import hljsCss from "highlight.js/styles/github.css?raw";
+import { localImageToDataUrl } from "./localImageUrl";
 import { renderMermaidToSvg } from "./mermaidPreview";
 
 const BASE_EXPORT_CSS = `
@@ -72,6 +73,27 @@ async function markdownToHtmlBody(markdown: string): Promise<string> {
   return replaceMermaidBlocks(String(file));
 }
 
+async function embedLocalImages(
+  bodyHtml: string,
+  sourcePath: string,
+): Promise<string> {
+  const container = document.createElement("div");
+  container.innerHTML = bodyHtml;
+
+  for (const image of container.querySelectorAll<HTMLImageElement>("img[src]")) {
+    const src = image.getAttribute("src");
+    if (!src) continue;
+    try {
+      const dataUrl = await localImageToDataUrl(src, sourcePath);
+      if (dataUrl) image.setAttribute("src", dataUrl);
+    } catch (err) {
+      throw new Error(`无法内联导出图片「${src}」：${String(err)}`);
+    }
+  }
+
+  return container.innerHTML;
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -81,17 +103,19 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * Renders a markdown document into a fully self-contained HTML document
- * (styles, KaTeX CSS and highlight.js theme are inlined so the file is
- * portable). When `autoPrint` is set, a small script triggers the native
- * print dialog on load, used for the "export to PDF" flow.
+ * Renders markdown into portable HTML. Styles and readable local images are
+ * inlined; remote HTTP(S) images intentionally remain external. When
+ * `autoPrint` is set, a small script triggers the native print dialog.
  */
 export async function renderExportHtml(
   markdown: string,
   title: string,
-  options?: { autoPrint?: boolean },
+  options?: { autoPrint?: boolean; sourcePath?: string },
 ): Promise<string> {
-  const bodyHtml = await markdownToHtmlBody(markdown);
+  const renderedBody = await markdownToHtmlBody(markdown);
+  const bodyHtml = options?.sourcePath
+    ? await embedLocalImages(renderedBody, options.sourcePath)
+    : renderedBody;
   const printScript = options?.autoPrint
     ? '<script>window.addEventListener("load", () => setTimeout(() => window.print(), 300));</script>'
     : "";

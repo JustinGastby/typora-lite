@@ -21,7 +21,9 @@ export async function exportCurrentFileToHtml(): Promise<void> {
   if (!currentFilePath) return;
 
   const title = titleFromPath(currentFilePath);
-  const html = await renderExportHtml(content, title);
+  const html = await renderExportHtml(content, title, {
+    sourcePath: currentFilePath,
+  });
 
   const defaultDir = await dirname(currentFilePath);
   const target = await save({
@@ -45,7 +47,10 @@ export async function exportCurrentFileToPdf(): Promise<void> {
   if (!currentFilePath) return;
 
   const title = titleFromPath(currentFilePath);
-  const html = await renderExportHtml(content, title, { autoPrint: true });
+  const html = await renderExportHtml(content, title, {
+    autoPrint: true,
+    sourcePath: currentFilePath,
+  });
 
   const printDir = await join(await tempDir(), "typora-lite-print");
   if (!(await exists(printDir))) {

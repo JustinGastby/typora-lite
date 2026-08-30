@@ -221,6 +221,39 @@ html.is-resizing-sidebar * {
   background: var(--app-bg, transparent);
 }
 
+.external-file-change-banner {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--app-accent, #2b5cff) 32%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-panel, #fff) 90%, var(--app-accent, #2b5cff));
+  color: var(--app-fg, #24292e);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.16);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.external-file-change-banner button {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--app-accent, #2b5cff);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.external-file-change-banner button:hover {
+  filter: brightness(1.08);
+}
+
 .milkdown-editor-root {
   width: 100%;
   max-width: 1100px;

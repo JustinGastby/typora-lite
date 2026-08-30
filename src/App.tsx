@@ -8,12 +8,15 @@ import { Sidebar } from "./components/Sidebar";
 import { OutlinePanel } from "./components/OutlinePanel";
 import { MilkdownEditor } from "./components/MilkdownEditor";
 import { useAutosave } from "./lib/useAutosave";
+import { useExternalFileWatcher } from "./lib/useExternalFileWatcher";
 import {
   createNewFile,
   loadFolder,
   openDroppedPaths,
   openFileDialog,
   openFolderDialog,
+  prepareToClose,
+  reloadExternallyChangedFile,
   saveCurrentFile,
 } from "./lib/actions";
 import {
@@ -26,7 +29,7 @@ import {
 import "./App.css";
 
 const MENU_ACTIONS: Record<string, () => void> = {
-  "menu-new-file": () => createNewFile(),
+  "menu-new-file": () => createNewFile().catch((err) => console.error(err)),
   "menu-open-file": () => openFileDialog().catch((err) => console.error(err)),
   "menu-open-folder": () => openFolderDialog().catch((err) => console.error(err)),
   "menu-save": () => saveCurrentFile().catch((err) => console.error(err)),
@@ -47,7 +50,9 @@ function WelcomeScreen() {
       <h1>Typora Lite</h1>
       <p>新建、打开，或把 Markdown 文件 / 文件夹拖进窗口开始写作</p>
       <div className="welcome-actions">
-        <button onClick={() => createNewFile()}>新建文件</button>
+        <button onClick={() => createNewFile().catch((err) => console.error(err))}>
+          新建文件
+        </button>
         <button onClick={() => openFolderDialog().catch((err) => console.error(err))}>
           打开文件夹
         </button>
@@ -61,9 +66,17 @@ function WelcomeScreen() {
 
 function App() {
   useAutosave();
+  useExternalFileWatcher();
 
   const currentFilePath = useEditorStore((s) => s.currentFilePath);
   const isUntitled = useEditorStore((s) => s.isUntitled);
+  const editorInstanceId = useEditorStore((s) => s.editorInstanceId);
+  const externalFilePath = useEditorStore(
+    (s) => s.externalFileChange?.path ?? null,
+  );
+  const hasLocalChanges = useEditorStore(
+    (s) => s.content !== s.savedContent,
+  );
   const sidebarView = useEditorStore((s) => s.sidebarView);
   const sidebarVisible = useEditorStore((s) => s.sidebarVisible);
   const sidebarWidth = useEditorStore((s) => s.sidebarWidth);
@@ -71,7 +84,9 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
+    let closing = false;
     const cleanups: Array<() => void> = [];
+    const appWindow = getCurrentWindow();
 
     loadPersistedSidebarWidth()
       .then((width) => useEditorStore.getState().setSidebarWidth(width))
@@ -109,8 +124,28 @@ function App() {
       });
     });
 
+    appWindow
+      .onCloseRequested(async (event) => {
+        event.preventDefault();
+        if (closing) return;
+        closing = true;
+        try {
+          if (await prepareToClose()) {
+            await appWindow.destroy();
+          }
+        } catch (err) {
+          console.error("Failed to prepare window close:", err);
+        } finally {
+          closing = false;
+        }
+      })
+      .then((unlisten) => {
+        if (cancelled) unlisten();
+        else cleanups.push(unlisten);
+      });
+
     // Drag Markdown / folder onto the app window.
-    getCurrentWindow()
+    appWindow
       .onDragDropEvent((event) => {
         if (event.payload.type !== "drop") return;
         openDroppedPaths(event.payload.paths).catch((err) =>
@@ -209,8 +244,28 @@ function App() {
           </div>
         )}
         <main className="app-main">
+          {currentFilePath && externalFilePath === currentFilePath && (
+            <div className="external-file-change-banner" role="status">
+              <span>
+                文件已被外部修改
+                {hasLocalChanges ? "，自动保存已暂停" : ""}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  reloadExternallyChangedFile().catch((err) =>
+                    console.error(err),
+                  )
+                }
+              >
+                刷新
+              </button>
+            </div>
+          )}
           {currentFilePath || isUntitled ? (
-            <MilkdownEditor key={currentFilePath ?? "untitled"} />
+            <MilkdownEditor
+              key={`${editorInstanceId}:${currentFilePath ?? "untitled"}`}
+            />
           ) : (
             <WelcomeScreen />
           )}

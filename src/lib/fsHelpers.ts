@@ -8,6 +8,12 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { join, dirname } from "@tauri-apps/api/path";
 import type { FileNode } from "../store/useEditorStore";
+import {
+  extractBlobUrls,
+  getPersistedBlobPath,
+  getRememberedImageBlob,
+  rememberPersistedBlob,
+} from "./imageBlobRegistry";
 
 const IGNORED_ENTRIES = new Set([".git", ".DS_Store", "node_modules", ".idea", ".vscode"]);
 
@@ -99,36 +105,51 @@ export async function saveImageFile(markdownFilePath: string, file: File | Blob)
   return `assets/${fileName}`;
 }
 
-const BLOB_IMAGE_RE = /!\[[^\]]*\]\((blob:[^)\s]+)(?:\s+"[^"]*")?\)/g;
-
 /**
  * Rewrites markdown that still references transient `blob:` object URLs
- * (from pasting an image before the document had a real file path) into
- * real files under `assets/`. Without this, the blob text gets saved
- * verbatim and the image is permanently broken after the app restarts,
- * even though it displayed fine in the current session.
+ * into real files under `assets/`. Prefer the in-memory clipboard registry;
+ * fetching `blob:http://tauri.localhost/…` often fails in the WebView.
  */
 export async function persistBlobImages(
   markdownFilePath: string,
   content: string,
 ): Promise<string> {
-  if (!content.includes("](blob:")) return content;
+  if (!content.includes("blob:")) return content;
 
-  const blobUrls = new Set<string>();
-  for (const match of content.matchAll(BLOB_IMAGE_RE)) {
-    blobUrls.add(match[1]!);
-  }
-  if (!blobUrls.size) return content;
+  const blobUrls = extractBlobUrls(content);
+  if (!blobUrls.length) return content;
 
   let updated = content;
+  const failures: Array<{ url: string; error: unknown }> = [];
   for (const blobUrl of blobUrls) {
     try {
-      const blob = await (await fetch(blobUrl)).blob();
+      const persistedPath = getPersistedBlobPath(blobUrl);
+      if (persistedPath) {
+        updated = updated.split(`<${blobUrl}>`).join(persistedPath);
+        updated = updated.split(blobUrl).join(persistedPath);
+        continue;
+      }
+
+      const remembered = getRememberedImageBlob(blobUrl);
+      const blob = remembered ?? (await (await fetch(blobUrl)).blob());
+      if (!blob || blob.size === 0) {
+        throw new Error("empty blob");
+      }
       const relPath = await saveImageFile(markdownFilePath, blob);
+      rememberPersistedBlob(blobUrl, relPath);
+      updated = updated.split(`<${blobUrl}>`).join(relPath);
       updated = updated.split(blobUrl).join(relPath);
     } catch (err) {
       console.error("Failed to persist pasted image before save:", blobUrl, err);
+      failures.push({ url: blobUrl, error: err });
     }
+  }
+
+  if (failures.length) {
+    const first = failures[0]!;
+    throw new Error(
+      `无法保存 ${failures.length} 张粘贴图片（${first.url}）：${String(first.error)}`,
+    );
   }
   return updated;
 }

@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-destroy",
     "opener:default",
     "opener:allow-open-path",
     "dialog:default",
@@ -118,7 +119,20 @@
       ]
     },
     {
-      "identifier": "fs:allow-write",
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "**" },
+        { "path": "$HOME/**" },
+        { "path": "/**" },
+        { "path": "C:/**" },
+        { "path": "D:/**" },
+        { "path": "E:/**" },
+        { "path": "F:/**" },
+        { "path": "G:/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-watch",
       "allow": [
         { "path": "**" },
         { "path": "$HOME/**" },
