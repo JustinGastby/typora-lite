@@ -14,6 +14,9 @@ export function useAutosave(): void {
     (s) => s.externalFileChange?.path ?? null,
   );
   const applySavedSnapshot = useEditorStore((s) => s.applySavedSnapshot);
+  const setExternalFileChange = useEditorStore(
+    (s) => s.setExternalFileChange,
+  );
   const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -23,8 +26,17 @@ export function useAutosave(): void {
 
     window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
-      saveDocumentSnapshot(currentFilePath, content, documentRevision)
-        .then(({ persistedContent, skipped }) => {
+      saveDocumentSnapshot(
+        currentFilePath,
+        content,
+        documentRevision,
+        savedContent,
+      )
+        .then(({ persistedContent, skipped, conflict }) => {
+          if (conflict) {
+            setExternalFileChange(conflict);
+            return;
+          }
           if (!skipped) {
             applySavedSnapshot(currentFilePath, documentRevision, persistedContent);
           }
@@ -42,5 +54,6 @@ export function useAutosave(): void {
     documentRevision,
     externalFilePath,
     applySavedSnapshot,
+    setExternalFileChange,
   ]);
 }

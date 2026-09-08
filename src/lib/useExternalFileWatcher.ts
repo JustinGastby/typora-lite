@@ -1,12 +1,17 @@
 import { useEffect } from "react";
 import { dirname } from "@tauri-apps/api/path";
 import {
+  exists,
   readTextFile,
   watch,
   type UnwatchFn,
   type WatchEvent,
 } from "@tauri-apps/plugin-fs";
 import { useEditorStore } from "../store/useEditorStore";
+import {
+  isInternalDocumentWriteInProgress,
+  isKnownInternalDocumentSnapshot,
+} from "./documentPersistence";
 import { normalizeHtmlImages } from "./normalizeHtmlImages";
 
 function comparablePath(path: string): string {
@@ -43,12 +48,14 @@ export function useExternalFileWatcher(): void {
     let inspectionRevision = 0;
 
     const inspectDiskContent = async () => {
+      if (isInternalDocumentWriteInProgress(currentFilePath)) return;
       const revision = ++inspectionRevision;
       try {
         const diskContent = normalizeHtmlImages(
           await readTextFile(currentFilePath),
         );
         if (cancelled || revision !== inspectionRevision) return;
+        if (isInternalDocumentWriteInProgress(currentFilePath)) return;
 
         const state = useEditorStore.getState();
         if (state.currentFilePath !== currentFilePath) return;
@@ -63,14 +70,32 @@ export function useExternalFileWatcher(): void {
           return;
         }
 
+        // A save may rewrite transient blob URLs to assets paths, so its disk
+        // snapshot can legitimately differ from both editor snapshots briefly.
+        if (isKnownInternalDocumentSnapshot(currentFilePath, diskContent)) return;
+
         state.setExternalFileChange({
+          kind: "modified",
           path: currentFilePath,
           content: diskContent,
         });
       } catch (err) {
-        if (!cancelled) {
-          console.error("Failed to inspect externally changed file:", err);
+        if (cancelled || revision !== inspectionRevision) return;
+        if (isInternalDocumentWriteInProgress(currentFilePath)) return;
+
+        const pathExists = await exists(currentFilePath).catch(() => true);
+        if (cancelled || revision !== inspectionRevision) return;
+        const state = useEditorStore.getState();
+        if (state.currentFilePath !== currentFilePath) return;
+
+        if (!pathExists) {
+          state.setExternalFileChange({
+            kind: "missing",
+            path: currentFilePath,
+          });
+          return;
         }
+        console.error("Failed to inspect externally changed file:", err);
       }
     };
 

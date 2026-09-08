@@ -21,10 +21,9 @@ export interface HeadingItem {
   level: number;
 }
 
-export interface ExternalFileChange {
-  path: string;
-  content: string;
-}
+export type ExternalFileChange =
+  | { kind: "modified"; path: string; content: string }
+  | { kind: "missing"; path: string };
 
 export type SidebarView = "files" | "outline";
 
@@ -57,6 +56,12 @@ interface EditorState {
   ) => void;
   applyUntitledSave: (
     path: string,
+    sourceRevision: number,
+    persistedContent: string,
+  ) => void;
+  applyFileSaveAs: (
+    sourcePath: string,
+    targetPath: string,
     sourceRevision: number,
     persistedContent: string,
   ) => void;
@@ -143,6 +148,27 @@ export const useEditorStore = create<EditorState>((set) => ({
         content:
           state.documentRevision === sourceRevision ? persistedContent : state.content,
         savedContent: persistedContent,
+        externalFileChange: null,
+        outline: [],
+      };
+    }),
+  applyFileSaveAs: (
+    sourcePath,
+    targetPath,
+    sourceRevision,
+    persistedContent,
+  ) =>
+    set((state) => {
+      if (state.currentFilePath !== sourcePath) return state;
+      return {
+        currentFilePath: targetPath,
+        isUntitled: false,
+        content:
+          state.documentRevision === sourceRevision
+            ? persistedContent
+            : state.content,
+        savedContent: persistedContent,
+        editorInstanceId: state.editorInstanceId + 1,
         externalFileChange: null,
         outline: [],
       };

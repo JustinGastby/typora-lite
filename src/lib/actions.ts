@@ -1,7 +1,8 @@
 import { confirm, message, open, save } from "@tauri-apps/plugin-dialog";
 import { dirname, join, normalize, sep } from "@tauri-apps/api/path";
-import { stat } from "@tauri-apps/plugin-fs";
+import { exists, stat } from "@tauri-apps/plugin-fs";
 import { useEditorStore } from "../store/useEditorStore";
+import type { ExternalFileChange } from "../store/useEditorStore";
 import {
   buildFileTree,
   isMarkdownFile,
@@ -12,6 +13,7 @@ import { normalizeHtmlImages } from "./normalizeHtmlImages";
 import { persistLastFolder } from "./settingsStore";
 
 let transitionQueue: Promise<void> = Promise.resolve();
+let folderLoadGeneration = 0;
 
 function queueDocumentTransition<T>(operation: () => Promise<T>): Promise<T> {
   const result = transitionQueue.then(operation, operation);
@@ -30,7 +32,9 @@ async function notifyUnsupportedFormat(fileName: string): Promise<void> {
 }
 
 export async function loadFolder(dirPath: string): Promise<void> {
+  const generation = ++folderLoadGeneration;
   const tree = await buildFileTree(dirPath);
+  if (generation !== folderLoadGeneration) return;
   useEditorStore.getState().setRootDir(dirPath);
   useEditorStore.getState().setFileTree(tree);
   useEditorStore.getState().setSidebarView("files");
@@ -52,6 +56,9 @@ export async function openFileAtPath(path: string): Promise<void> {
     }
 
     if (useEditorStore.getState().currentFilePath === path) return;
+    // Invalidate a slower startup-folder restore before reading the OS-opened
+    // file. A later loadFolder call for this path receives a newer generation.
+    folderLoadGeneration += 1;
     const raw = await loadMarkdownFile(path);
     // Typora-style HTML <img> tags aren't rendered by Crepe; convert to Markdown.
     const content = normalizeHtmlImages(raw);
@@ -128,10 +135,12 @@ export async function createNewFile(): Promise<void> {
   });
 }
 
-async function saveAsNewFile(
-  content: string,
-  documentRevision: number,
-): Promise<boolean> {
+async function readSaveTargetBaseline(path: string): Promise<string | null> {
+  if (!(await exists(path))) return null;
+  return normalizeHtmlImages(await loadMarkdownFile(path));
+}
+
+async function saveAsNewFile(): Promise<boolean> {
   const rootDir = useEditorStore.getState().rootDir;
   const target = await save({
     title: "保存文件",
@@ -140,11 +149,24 @@ async function saveAsNewFile(
   });
   if (!target) return false;
 
-  const { persistedContent, skipped } = await saveDocumentSnapshot(
+  // Re-read after the dialog — the user may keep typing while it is open.
+  const { content, documentRevision, isUntitled } = useEditorStore.getState();
+  if (!isUntitled) return false;
+
+  const targetBaseline = await readSaveTargetBaseline(target);
+  const { persistedContent, skipped, conflict } = await saveDocumentSnapshot(
     target,
     content,
     documentRevision,
+    targetBaseline,
   );
+  if (conflict) {
+    await message("目标文件在保存过程中发生了变化，请重新选择保存位置。", {
+      title: "保存已取消",
+      kind: "warning",
+    });
+    return false;
+  }
   if (skipped) return false;
   useEditorStore
     .getState()
@@ -168,20 +190,33 @@ export async function saveCurrentFile(): Promise<boolean> {
   } = useEditorStore.getState();
 
   if (isUntitled) {
-    return saveAsNewFile(content, documentRevision);
+    return saveAsNewFile();
   }
   if (!currentFilePath) return false;
 
   if (content === savedContent) return true;
   if (externalFileChange?.path === currentFilePath) {
-    throw new Error("文件已被外部修改，请先刷新后再保存。");
+    throw new Error(
+      externalFileChange.kind === "missing"
+        ? "文件已被外部删除或移动，请先另存为。"
+        : "文件已被外部修改，请先刷新后再保存。",
+    );
   }
 
-  const { persistedContent, skipped } = await saveDocumentSnapshot(
+  const { persistedContent, skipped, conflict } = await saveDocumentSnapshot(
     currentFilePath,
     content,
     documentRevision,
+    savedContent,
   );
+  if (conflict) {
+    useEditorStore.getState().setExternalFileChange(conflict);
+    throw new Error(
+      conflict.kind === "missing"
+        ? "文件已被外部删除或移动，请先另存为。"
+        : "文件已被外部修改，请先刷新后再保存。",
+    );
+  }
   if (!skipped) {
     useEditorStore
       .getState()
@@ -193,22 +228,13 @@ export async function saveCurrentFile(): Promise<boolean> {
 export function reloadExternallyChangedFile(): Promise<void> {
   return queueDocumentTransition(async () => {
     const initialState = useEditorStore.getState();
-    const path = initialState.externalFileChange?.path;
+    const change = initialState.externalFileChange;
+    const path = change?.path;
     if (!path || initialState.currentFilePath !== path) return;
+    if (change.kind !== "modified") return;
 
     try {
-      // Read immediately before applying so repeated external changes do not
-      // reload an older snapshot captured by a previous watcher event.
-      const content = normalizeHtmlImages(await loadMarkdownFile(path));
-      const currentState = useEditorStore.getState();
-      if (
-        currentState.currentFilePath !== path ||
-        currentState.externalFileChange?.path !== path
-      ) {
-        return;
-      }
-
-      if (currentState.content !== currentState.savedContent) {
+      if (initialState.content !== initialState.savedContent) {
         const shouldReload = await confirm(
           "当前文档还有本地修改。刷新将丢弃这些修改并载入磁盘上的最新内容。",
           {
@@ -221,7 +247,16 @@ export function reloadExternallyChangedFile(): Promise<void> {
         if (!shouldReload) return;
       }
 
-      if (useEditorStore.getState().currentFilePath !== path) return;
+      // Read only after the user confirms so a late external write is not missed.
+      const content = normalizeHtmlImages(await loadMarkdownFile(path));
+      const currentState = useEditorStore.getState();
+      if (
+        currentState.currentFilePath !== path ||
+        currentState.externalFileChange?.path !== path ||
+        currentState.externalFileChange.kind !== "modified"
+      ) {
+        return;
+      }
       useEditorStore.getState().openFile(path, content);
     } catch (err) {
       console.error("Failed to reload externally changed file:", err);
@@ -230,6 +265,99 @@ export function reloadExternallyChangedFile(): Promise<void> {
         kind: "error",
       });
     }
+  });
+}
+
+export function saveMissingFileAs(): Promise<void> {
+  return queueDocumentTransition(async () => {
+    const state = useEditorStore.getState();
+    const change = state.externalFileChange;
+    const sourcePath = state.currentFilePath;
+    if (
+      !sourcePath ||
+      change?.kind !== "missing" ||
+      change.path !== sourcePath
+    ) {
+      return;
+    }
+
+    const target = await save({
+      title: "文件已被删除或移动，请另存为",
+      defaultPath: sourcePath,
+      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+    });
+    if (!target) return;
+
+    // Re-read after the dialog — the user may keep typing while it is open.
+    const latest = useEditorStore.getState();
+    if (
+      latest.currentFilePath !== sourcePath ||
+      latest.externalFileChange?.kind !== "missing" ||
+      latest.externalFileChange.path !== sourcePath
+    ) {
+      return;
+    }
+
+    const targetBaseline = await readSaveTargetBaseline(target);
+    const { persistedContent, skipped, conflict } = await saveDocumentSnapshot(
+      target,
+      latest.content,
+      latest.documentRevision,
+      targetBaseline,
+    );
+    if (conflict) {
+      await message("目标文件在保存过程中发生了变化，请重新选择保存位置。", {
+        title: "另存为已取消",
+        kind: "warning",
+      });
+      return;
+    }
+    if (skipped) return;
+
+    useEditorStore
+      .getState()
+      .applyFileSaveAs(
+        sourcePath,
+        target,
+        latest.documentRevision,
+        persistedContent,
+      );
+
+    const dir = await dirname(target);
+    const rootDir = useEditorStore.getState().rootDir;
+    if (rootDir && (await isPathInsideDirectory(target, rootDir))) {
+      await loadFolder(rootDir);
+    } else {
+      await loadFolder(dir);
+    }
+  });
+}
+
+export function closeMissingFile(): Promise<void> {
+  return queueDocumentTransition(async () => {
+    const state = useEditorStore.getState();
+    const change = state.externalFileChange;
+    if (
+      !state.currentFilePath ||
+      change?.kind !== "missing" ||
+      change.path !== state.currentFilePath
+    ) {
+      return;
+    }
+
+    if (state.content !== state.savedContent) {
+      const shouldClose = await confirm(
+        "当前文件已被删除或移动，关闭将丢弃本地尚未保存的修改。",
+        {
+          title: "关闭当前文档",
+          kind: "warning",
+          okLabel: "关闭",
+          cancelLabel: "取消",
+        },
+      );
+      if (!shouldClose) return;
+    }
+    useEditorStore.getState().closeFile();
   });
 }
 
@@ -242,16 +370,44 @@ async function flushCurrentDocument(): Promise<boolean> {
   }
 }
 
+function confirmDiscardExternalConflict(
+  change: ExternalFileChange,
+): Promise<boolean> {
+  return confirm(
+    change.kind === "missing"
+      ? "当前文件已被外部删除或移动。要丢弃本地修改并继续吗？"
+      : "当前文件已被外部修改。要丢弃本地修改并继续吗？",
+    {
+      title: "未保存的本地修改",
+      kind: "warning",
+      okLabel: "丢弃并继续",
+      cancelLabel: "取消",
+    },
+  );
+}
+
 /**
  * Flushes an existing document before leaving it. Untitled dirty documents
  * need an explicit save/discard/cancel choice because they have no disk path.
  */
 async function prepareForDocumentTransition(): Promise<boolean> {
-  const { currentFilePath, content, savedContent, isUntitled } =
+  const {
+    currentFilePath,
+    content,
+    savedContent,
+    isUntitled,
+    externalFileChange,
+  } =
     useEditorStore.getState();
   if (content === savedContent) return true;
 
   try {
+    if (
+      currentFilePath &&
+      externalFileChange?.path === currentFilePath
+    ) {
+      return confirmDiscardExternalConflict(externalFileChange);
+    }
     if (currentFilePath) {
       return await flushCurrentDocument();
     }
@@ -267,6 +423,16 @@ async function prepareForDocumentTransition(): Promise<boolean> {
     if (!(await saveCurrentFile())) return false;
     return await flushCurrentDocument();
   } catch (err) {
+    // The write preflight may discover a conflict before the watcher does.
+    // Offer the same discard/cancel choice on this first transition attempt.
+    const latest = useEditorStore.getState();
+    if (
+      latest.currentFilePath &&
+      latest.content !== latest.savedContent &&
+      latest.externalFileChange?.path === latest.currentFilePath
+    ) {
+      return confirmDiscardExternalConflict(latest.externalFileChange);
+    }
     console.error("Failed to save before leaving the document:", err);
     await message(`保存失败，已取消当前操作。\n\n${String(err)}`, {
       title: "Typora Lite",

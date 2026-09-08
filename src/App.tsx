@@ -16,7 +16,9 @@ import {
   openFileDialog,
   openFolderDialog,
   prepareToClose,
+  closeMissingFile,
   reloadExternallyChangedFile,
+  saveMissingFileAs,
   saveCurrentFile,
 } from "./lib/actions";
 import {
@@ -71,9 +73,7 @@ function App() {
   const currentFilePath = useEditorStore((s) => s.currentFilePath);
   const isUntitled = useEditorStore((s) => s.isUntitled);
   const editorInstanceId = useEditorStore((s) => s.editorInstanceId);
-  const externalFilePath = useEditorStore(
-    (s) => s.externalFileChange?.path ?? null,
-  );
+  const externalFileChange = useEditorStore((s) => s.externalFileChange);
   const hasLocalChanges = useEditorStore(
     (s) => s.content !== s.savedContent,
   );
@@ -85,6 +85,7 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     let closing = false;
+    let externalOpenClaimed = false;
     const cleanups: Array<() => void> = [];
     const appWindow = getCurrentWindow();
 
@@ -103,11 +104,11 @@ function App() {
       try {
         // Small yield so OS-open drain can claim priority first.
         await new Promise((r) => setTimeout(r, 0));
-        if (cancelled) return;
+        if (cancelled || externalOpenClaimed) return;
         const { currentFilePath, isUntitled } = useEditorStore.getState();
         if (currentFilePath || isUntitled) return;
         const folder = await loadLastFolder();
-        if (cancelled || !folder) return;
+        if (cancelled || externalOpenClaimed || !folder) return;
         const state = useEditorStore.getState();
         if (state.currentFilePath || state.isUntitled) return;
         await loadFolder(folder);
@@ -165,6 +166,9 @@ function App() {
       async function drainPendingOpenPaths() {
         const paths = await invoke<string[]>("take_pending_open_paths");
         if (!paths.length || cancelled) return;
+        // Claim startup priority before stat/buildFileTree awaits. This also
+        // covers OS-opened folders, which do not set currentFilePath.
+        externalOpenClaimed = true;
         await openDroppedPaths(paths);
       }
 
@@ -244,22 +248,46 @@ function App() {
           </div>
         )}
         <main className="app-main">
-          {currentFilePath && externalFilePath === currentFilePath && (
+          {currentFilePath &&
+            externalFileChange?.path === currentFilePath && (
             <div className="external-file-change-banner" role="status">
               <span>
-                文件已被外部修改
+                {externalFileChange.kind === "missing"
+                  ? "文件已被外部删除或移动"
+                  : "文件已被外部修改"}
                 {hasLocalChanges ? "，自动保存已暂停" : ""}
               </span>
-              <button
-                type="button"
-                onClick={() =>
-                  reloadExternallyChangedFile().catch((err) =>
-                    console.error(err),
-                  )
-                }
-              >
-                刷新
-              </button>
+              {externalFileChange.kind === "missing" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      saveMissingFileAs().catch((err) => console.error(err))
+                    }
+                  >
+                    另存为
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      closeMissingFile().catch((err) => console.error(err))
+                    }
+                  >
+                    关闭
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    reloadExternallyChangedFile().catch((err) =>
+                      console.error(err),
+                    )
+                  }
+                >
+                  刷新
+                </button>
+              )}
             </div>
           )}
           {currentFilePath || isUntitled ? (

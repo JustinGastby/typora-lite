@@ -4,7 +4,10 @@ import { editorViewCtx } from "@milkdown/kit/core";
 import { useEditorStore } from "../store/useEditorStore";
 import { saveImageFile } from "../lib/fsHelpers";
 import { rememberImageBlob, rewritePersistedBlobUrls } from "../lib/imageBlobRegistry";
-import { attachImageCornerResize } from "../lib/imageCornerResize";
+import {
+  attachImageCornerResize,
+  configureImageBlockAlignment,
+} from "../lib/imageCornerResize";
 import { resolveLocalImageUrl } from "../lib/localImageUrl";
 import { normalizeHtmlImages } from "../lib/normalizeHtmlImages";
 import { extractOutline } from "../lib/outline";
@@ -96,6 +99,7 @@ export function MilkdownEditor() {
         },
       },
     });
+    configureImageBlockAlignment(crepe.editor);
 
     crepe.on((listener) => {
       listener.markdownUpdated((_ctx, markdown) => {

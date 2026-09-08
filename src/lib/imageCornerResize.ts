@@ -1,12 +1,114 @@
-import type { EditorView } from "@milkdown/prose/view";
+import type { Editor } from "@milkdown/kit/core";
+import { imageBlockSchema } from "@milkdown/kit/component/image-block";
+import { Plugin } from "@milkdown/kit/prose/state";
+import { $prose } from "@milkdown/kit/utils";
+import {
+  Decoration,
+  DecorationSet,
+  type EditorView,
+} from "@milkdown/kit/prose/view";
 
 type Corner = "nw" | "ne" | "sw" | "se";
+type ImageAlignment = "left" | "center" | "right";
 
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
+const ALIGNMENTS: ImageAlignment[] = ["left", "center", "right"];
 const MIN_SIZE = 100;
 const HANDLE_CLASS = "image-corner-handle";
+const TOOLBAR_CLASS = "image-block-toolbar";
 
 type GetView = () => EditorView | null;
+
+function normalizeAlignment(value: unknown): ImageAlignment {
+  return ALIGNMENTS.includes(value as ImageAlignment)
+    ? (value as ImageAlignment)
+    : "center";
+}
+
+function parseImageBlockAlt(alt: unknown): {
+  ratio: number;
+  alignment: ImageAlignment;
+} {
+  const [ratioText, alignmentText] = String(alt ?? "").split("|", 2);
+  let ratio = Number(ratioText || 1);
+  if (Number.isNaN(ratio) || ratio <= 0) ratio = 1;
+  return {
+    ratio,
+    alignment: normalizeAlignment(alignmentText),
+  };
+}
+
+/**
+ * Extends Crepe's image-block markdown format from `![1.00](...)` to
+ * `![1.00|left](...)` / `![1.00|right](...)`. The original numeric form
+ * remains the centered default, so existing documents stay compatible.
+ */
+export function configureImageBlockAlignment(editor: Editor): void {
+  editor.config((ctx) => {
+    ctx.update(imageBlockSchema.key, (previousFactory) => (schemaCtx) => {
+      const previous = previousFactory(schemaCtx);
+      return {
+        ...previous,
+        attrs: {
+          ...previous.attrs,
+          alignment: { default: "center", validate: "string" },
+        },
+        parseMarkdown: {
+          match: ({ type }) => type === "image-block",
+          runner: (state, node, type) => {
+            const { ratio, alignment } = parseImageBlockAlt(node.alt);
+            state.addNode(type, {
+              src: String(node.url ?? ""),
+              caption: String(node.title ?? ""),
+              ratio,
+              alignment,
+            });
+          },
+        },
+        toMarkdown: {
+          match: (node) => node.type.name === "image-block",
+          runner: (state, node) => {
+            const ratio = Number.parseFloat(node.attrs.ratio).toFixed(2);
+            const alignment = normalizeAlignment(node.attrs.alignment);
+            state.openNode("paragraph");
+            state.addNode("image", undefined, undefined, {
+              title: node.attrs.caption,
+              url: node.attrs.src,
+              alt:
+                alignment === "center"
+                  ? ratio
+                  : `${ratio}|${alignment}`,
+            });
+            state.closeNode();
+          },
+        },
+      };
+    });
+  });
+
+  editor.use(
+    $prose(
+      () =>
+        new Plugin({
+          props: {
+            decorations(state) {
+              const decorations: Decoration[] = [];
+              state.doc.descendants((node, pos) => {
+                if (node.type.name !== "image-block") return;
+                const alignment = normalizeAlignment(node.attrs.alignment);
+                decorations.push(
+                  Decoration.node(pos, pos + node.nodeSize, {
+                    class: `image-align-${alignment}`,
+                  }),
+                );
+              });
+              return DecorationSet.create(state.doc, decorations);
+            },
+          },
+        }),
+    ),
+  );
+}
 
 function editorContentMaxWidth(block: HTMLElement): number {
   // `.milkdown-image-block` already spans the editor content column.
@@ -60,6 +162,126 @@ function findImageBlockPos(view: EditorView, block: HTMLElement): number | null 
     }
   });
   return found;
+}
+
+function syncAlignmentClass(
+  view: EditorView,
+  block: HTMLElement,
+): ImageAlignment {
+  const pos = findImageBlockPos(view, block);
+  const alignment =
+    pos === null
+      ? "center"
+      : normalizeAlignment(view.state.doc.nodeAt(pos)?.attrs.alignment);
+  for (const value of ALIGNMENTS) {
+    block.classList.toggle(`image-align-${value}`, value === alignment);
+  }
+  block
+    .querySelectorAll<HTMLButtonElement>(`.${TOOLBAR_CLASS} [data-align]`)
+    .forEach((button) => {
+      const active = button.dataset.align === alignment;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  return alignment;
+}
+
+function setImageAlignment(
+  view: EditorView,
+  block: HTMLElement,
+  alignment: ImageAlignment,
+): void {
+  const pos = findImageBlockPos(view, block);
+  if (pos === null) return;
+  const node = view.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== "image-block") return;
+  view.dispatch(
+    view.state.tr
+      .setNodeMarkup(pos, undefined, {
+        ...node.attrs,
+        alignment,
+      })
+      .scrollIntoView(),
+  );
+  syncAlignmentClass(view, block);
+}
+
+function deleteImageBlock(view: EditorView, block: HTMLElement): void {
+  const pos = findImageBlockPos(view, block);
+  if (pos === null) return;
+  const node = view.state.doc.nodeAt(pos);
+  if (!node || node.type.name !== "image-block") return;
+  view.dispatch(
+    view.state.tr.delete(pos, pos + node.nodeSize).scrollIntoView(),
+  );
+}
+
+function createToolbarButton(
+  label: string,
+  title: string,
+  action: () => void,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  button.setAttribute("contenteditable", "false");
+  button.onpointerdown = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  button.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  };
+  return button;
+}
+
+function ensureToolbar(
+  block: HTMLElement,
+  getView: GetView,
+): HTMLElement {
+  const existing = block.querySelector<HTMLElement>(
+    `:scope > .${TOOLBAR_CLASS}`,
+  );
+  if (existing) return existing;
+
+  const toolbar = document.createElement("div");
+  toolbar.className = TOOLBAR_CLASS;
+  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("aria-label", "图片排列");
+  toolbar.setAttribute("contenteditable", "false");
+
+  const options: Array<[ImageAlignment, string, string]> = [
+    ["left", "左", "图片靠左"],
+    ["center", "中", "图片居中"],
+    ["right", "右", "图片靠右"],
+  ];
+  for (const [alignment, label, title] of options) {
+    const button = createToolbarButton(label, title, () => {
+      const view = getView();
+      if (view) setImageAlignment(view, block, alignment);
+    });
+    button.dataset.align = alignment;
+    toolbar.appendChild(button);
+  }
+
+  const divider = document.createElement("span");
+  divider.className = "image-block-toolbar-divider";
+  divider.setAttribute("aria-hidden", "true");
+  toolbar.appendChild(divider);
+
+  const deleteButton = createToolbarButton("×", "Delete image (undoable)", () => {
+    const view = getView();
+    if (view) deleteImageBlock(view, block);
+  });
+  deleteButton.className = "danger";
+  toolbar.appendChild(deleteButton);
+
+  block.prepend(toolbar);
+  return toolbar;
 }
 
 function persistRatio(view: EditorView, block: HTMLElement, ratio: number): void {
@@ -222,10 +444,13 @@ export function attachImageCornerResize(
   const enhanceBlock = (block: HTMLElement) => {
     const wrapper = block.querySelector<HTMLElement>(":scope > .image-wrapper");
     if (!wrapper) return;
+    ensureToolbar(block, getView);
     const handles = ensureHandles(wrapper);
     for (const handle of handles) {
       handle.onpointerdown = onHandlePointerDown;
     }
+    const view = getView();
+    if (view) syncAlignmentClass(view, block);
   };
 
   const scan = () => {
@@ -248,6 +473,13 @@ export function attachImageCornerResize(
     window.removeEventListener("pointerup", onPointerUp);
     root.querySelectorAll<HTMLElement>(`.${HANDLE_CLASS}`).forEach((el) => {
       el.onpointerdown = null;
+      el.remove();
+    });
+    root.querySelectorAll<HTMLElement>(`.${TOOLBAR_CLASS}`).forEach((el) => {
+      el.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
+        button.onpointerdown = null;
+        button.onclick = null;
+      });
       el.remove();
     });
   };

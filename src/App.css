@@ -284,6 +284,122 @@ html.is-resizing-sidebar * {
   object-fit: contain;
 }
 
+.milkdown-editor-root .milkdown-image-block.image-align-left > .image-wrapper {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.milkdown-editor-root .milkdown-image-block.image-align-center > .image-wrapper {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.milkdown-editor-root .milkdown-image-block.image-align-right > .image-wrapper {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.milkdown-editor-root .milkdown-image-block.image-align-left > .caption-input {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: auto;
+  text-align: left;
+}
+
+.milkdown-editor-root .milkdown-image-block.image-align-center > .caption-input {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.milkdown-editor-root .milkdown-image-block.image-align-right > .caption-input {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: 0;
+  text-align: right;
+}
+
+.milkdown-editor-root .image-block-toolbar {
+  display: none;
+  align-items: center;
+  width: max-content;
+  gap: 3px;
+  margin: 0 auto 8px;
+  padding: 4px;
+  border: 1px solid var(--app-border, rgba(0, 0, 0, 0.12));
+  border-radius: 8px;
+  background: var(--app-panel, #fff);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  user-select: none;
+}
+
+.milkdown-editor-root
+  .milkdown-image-block.selected
+  > .image-block-toolbar {
+  display: flex;
+}
+
+.milkdown-editor-root
+  .milkdown-image-block.image-align-left
+  > .image-block-toolbar {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.milkdown-editor-root
+  .milkdown-image-block.image-align-right
+  > .image-block-toolbar {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.milkdown-editor-root .image-block-toolbar button {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--app-fg, #24292e);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.milkdown-editor-root .image-block-toolbar button:hover,
+.milkdown-editor-root .image-block-toolbar button.active {
+  background: var(--app-active, rgba(64, 120, 220, 0.15));
+}
+
+.milkdown-editor-root .image-block-toolbar button.active {
+  color: var(--app-accent, #2b5cff);
+  font-weight: 700;
+}
+
+.milkdown-editor-root .image-block-toolbar button.danger {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.milkdown-editor-root .image-block-toolbar button.danger:hover {
+  background: rgba(192, 57, 43, 0.13);
+  color: #c0392b;
+}
+
+.milkdown-editor-root .image-block-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--app-border, rgba(0, 0, 0, 0.12));
+}
+
 .milkdown-editor-root .image-corner-handle {
   position: absolute;
   width: 10px;
